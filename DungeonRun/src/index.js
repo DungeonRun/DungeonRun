@@ -131,11 +131,7 @@ const keysPressed = {};
 const keyDisplayQueue = new KeyDisplay();
 document.addEventListener('keydown', (event) => {
     keyDisplayQueue.down(event.key);
-    if (event.key.toLowerCase() === 'shift') {
-        characterControls && characterControls.switchRunToggle();
-    } else {
-        keysPressed[event.key.toLowerCase()] = true;
-    }
+    keysPressed[event.key.toLowerCase()] = true;
 }, false);
 document.addEventListener('keyup', (event) => {
     keyDisplayQueue.up(event.key);

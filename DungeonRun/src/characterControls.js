@@ -28,13 +28,13 @@ class CharacterControls {
     }
 
     switchRunToggle() {
-        this.toggleRun = !this.toggleRun;
+        this.toggleRun = !this.toggleRun; //unused function now
     }
 
     update(delta, keysPressed) {
         const directionPressed = DIRECTIONS.some(key => keysPressed[key] === true);
         let play = '';
-        if (directionPressed && this.toggleRun) {
+        if (directionPressed && keysPressed['shift']) {
             play = 'Run';
         } else if (directionPressed) {
             play = 'Walk';
