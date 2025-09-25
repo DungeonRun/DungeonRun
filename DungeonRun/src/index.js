@@ -3,6 +3,7 @@ import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CharacterControls } from './characterControls.js';
 import { KeyDisplay } from './utils.js';
+import { EnemyMovement } from './enemyMovement.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -102,13 +103,20 @@ function generateFloor() {
 
 // Load model and animations
 let characterControls;
+let enemyMovement1;
+let enemyMovement2;
+
 new GLTFLoader().load(
     '/src/models/Soldier.glb',
     function (gltf) {
         const model = gltf.scene;
         model.traverse(function (object) {
-            if (object.isMesh) object.castShadow = true;
+            if (object.isMesh) {
+                object.castShadow = true;
+                object.name = 'player'; // Ensure all meshes are named "player"
+            }
         });
+        model.name = 'player'; // Ensure the root is named "player"
         scene.add(model);
 
         const gltfAnimations = gltf.animations;
@@ -119,6 +127,10 @@ new GLTFLoader().load(
         });
 
         characterControls = new CharacterControls(model, mixer, animationsMap, orbitControls, camera, 'Idle');
+
+        // Spawn 2 enemies with different start positions
+        enemyMovement1 = new EnemyMovement(scene, model, new THREE.Vector3(0, 1, 0));  // default position
+        enemyMovement2 = new EnemyMovement(scene, model, new THREE.Vector3(5, 1, -5)); // offset enemy
     },
     undefined,
     function (error) {
@@ -145,6 +157,9 @@ function animate() {
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keysPressed);
     }
+    if (enemyMovement1) enemyMovement1.update();
+    if (enemyMovement2) enemyMovement2.update();
+
     orbitControls.update();
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
