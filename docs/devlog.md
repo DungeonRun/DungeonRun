@@ -27,9 +27,20 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 
 ### 4. Risuna 
 - **Features Developed**:
-  
+  - Third-person camera system implementation
+  - Removed OrbitControls and replaced with smooth following camera
+  - Fixed texture loading paths for sand floor
 - **Notes**: 
+  - Implemented third-person camera based on YouTube tutorial: https://youtu.be/UuNPHOJ_V5o?si=cgUkKepd6sHty8dP
+  - Camera now smoothly follows avatar with fixed offset behind and above player
+  - Uses lerp interpolation for smooth movement transitions
+  - Fixed texture issue - floor was previously blue due to incorrect texture paths, now displays proper sand texture
+  - Camera maintains correct relative position when avatar rotates
 - **Additional Info**: 
+  - Created `thirdPersonCamera.js` class with configurable offsets
+  - Updated `characterControls.js` to work with new camera system
+  - Modified `index.js` to integrate third-person camera
+  - Will continue implementation once dungeon structure is available for collision detection 
 
 ### 5. Naledi Mogomotsi
 - **Features Developed**:
