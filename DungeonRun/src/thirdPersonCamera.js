@@ -3,13 +3,13 @@ import * as THREE from 'three';
 /**
  * Third Person Camera implementation
  * Based on tutorial approach with smooth following and look-at mechanics
- * Maintains fixed offset behind and above the target (avatar)
+ * Maintains fixed offset behind and above the avatar
  */
 class ThirdPersonCamera {
     constructor(params) {
         this._params = params;
         this._camera = params.camera;
-        this._target = params.target; // The avatar/player model
+        this._target = params.target; // The avatar model
 
         // Current smooth positions for interpolation
         this._currentPosition = new THREE.Vector3();
