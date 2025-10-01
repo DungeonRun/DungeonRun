@@ -165,6 +165,19 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
+function addRoomCube() {
+    const size = 40;
+    const geometry = new THREE.BoxGeometry(size, size, size);
+    const material = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        side: THREE.BackSide //normal inversion
+    });
+    const room = new THREE.Mesh(geometry, material);
+    room.position.y = size / 2 - 0.05; 
+    room.receiveShadow = true;
+    scene.add(room);
+}
+
 // Resize handler
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
@@ -177,4 +190,5 @@ window.addEventListener('resize', onWindowResize);
 // Initialize scene
 light();
 generateFloor();
+addRoomCube();
 animate();
