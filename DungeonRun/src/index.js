@@ -1,9 +1,9 @@
 import * as THREE from 'three';
-import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CharacterControls } from './characterControls.js';
 import { KeyDisplay } from './utils.js';
 import { EnemyMovement } from './enemyMovement.js';
+import { ThirdPersonCamera } from './thirdPersonCamera.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -24,14 +24,8 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 
-// Orbit controls
-const orbitControls = new OrbitControls(camera, renderer.domElement);
-orbitControls.enableDamping = true;
-orbitControls.minDistance = 5;
-orbitControls.maxDistance = 15;
-orbitControls.enablePan = false;
-orbitControls.maxPolarAngle = Math.PI / 2 - 0.05;
-orbitControls.update();
+// Third person camera (will be initialized after model loads)
+let thirdPersonCamera;
 
 // Lighting
 function light() {
@@ -65,10 +59,10 @@ function generateFloor() {
     };
 
     Promise.all([
-        loadTexture('/textures/sand/Sand_002_COLOR.jpg'),
-        loadTexture('/textures/sand/Sand_002_NRM.jpg'),
-        loadTexture('/textures/sand/Sand_002_DISP.jpg'),
-        loadTexture('/textures/sand/Sand_002_OCC.jpg')
+        loadTexture('/sand/Sand 002_COLOR.jpg'),
+        loadTexture('/sand/Sand 002_NRM.jpg'),
+        loadTexture('/sand/Sand 002_DISP.jpg'),
+        loadTexture('/sand/Sand 002_OCC.jpg')
     ]).then(([sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion]) => {
         const WIDTH = 80;
         const LENGTH = 80;
@@ -126,7 +120,13 @@ new GLTFLoader().load(
             animationsMap.set(a.name, mixer.clipAction(a));
         });
 
-        characterControls = new CharacterControls(model, mixer, animationsMap, orbitControls, camera, 'Idle');
+        // Initialize third person camera
+        thirdPersonCamera = new ThirdPersonCamera({
+            camera: camera,
+            target: model
+        });
+
+        characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle');
 
         // Spawn 2 enemies with different start positions
         enemyMovement1 = new EnemyMovement(scene, model, new THREE.Vector3(0, 1, 0));  // default position
@@ -160,7 +160,11 @@ function animate() {
     if (enemyMovement1) enemyMovement1.update();
     if (enemyMovement2) enemyMovement2.update();
 
-    orbitControls.update();
+    // Update third person camera
+    if (thirdPersonCamera) {
+        thirdPersonCamera.Update(mixerUpdateDelta);
+    }
+
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
 }
