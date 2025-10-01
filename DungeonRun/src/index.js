@@ -1,13 +1,20 @@
+// index.js - main file for rendering scene essentially
+
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CharacterControls } from './characterControls.js';
 import { KeyDisplay } from './utils.js';
 import { EnemyMovement } from './enemyMovement.js';
 import { ThirdPersonCamera } from './thirdPersonCamera.js';
+import { addGlowingKey } from './keyGlow.js';
 
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xa8def0);
+
+let keyAnimator = null;
+let keyObject = null; // Reference to the key for grabbing
+let isKeyGrabbed = false; // Global flag
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -138,17 +145,53 @@ new GLTFLoader().load(
     }
 );
 
+// Load the glowing key (positioned on the floor for visibility)
+addGlowingKey(scene).then(({ animator, key }) => {
+    keyAnimator = animator;
+    keyObject = key; // Store reference
+    console.log('Glowing key loaded and ready!');
+}).catch(error => {
+    console.error('Failed to load glowing key:', error);
+});
+
 // Keyboard controls
 const keysPressed = {};
-const keyDisplayQueue = new KeyDisplay();
+const keyDisplayQueue = new KeyDisplay(); // Now has extended KeyDisplay
 document.addEventListener('keydown', (event) => {
     keyDisplayQueue.down(event.key);
     keysPressed[event.key.toLowerCase()] = true;
+
+    // Grab logic: Check if 'e' pressed and close to key (neat, non-breaking)
+    if (event.key.toLowerCase() === 'e' && keyObject && !isKeyGrabbed && characterControls) {
+        const playerPos = characterControls.model.position; // Access player position
+        const keyPos = keyObject.position;
+        const distance = playerPos.distanceTo(keyPos);
+        if (distance < 0.5) { // Grab within 2 units
+            grabKey();
+        }
+    }
 }, false);
 document.addEventListener('keyup', (event) => {
     keyDisplayQueue.up(event.key);
     keysPressed[event.key.toLowerCase()] = false;
 }, false);
+
+// Add this new function for grabbing (hides key and updates status)
+function grabKey() {
+    if (!keyObject || isKeyGrabbed) return;
+    
+    isKeyGrabbed = true;
+    keyObject.userData.isGrabbed = true;
+    keyObject.visible = false; // Hide the key instead of attaching
+    
+    // Update status display via KeyDisplay
+    keyDisplayQueue.updateKeyStatus('yes');
+    
+    // Ensure 'E' is hidden after grab
+    keyDisplayQueue.up('e');
+    
+    console.log('Key grabbed! Status updated to yes.');
+}
 
 // Animation loop
 const clock = new THREE.Clock();
@@ -159,6 +202,27 @@ function animate() {
     }
     if (enemyMovement1) enemyMovement1.update();
     if (enemyMovement2) enemyMovement2.update();
+
+    // Animate the key if loaded
+    if (keyAnimator) {
+        keyAnimator();
+    }
+
+    // Proximity check: Show 'E' icon only when near and not grabbed
+    if (keyObject && !isKeyGrabbed && characterControls) {
+        const playerPos = characterControls.model.position;
+        const distance = playerPos.distanceTo(keyObject.position);
+        if (distance < 3) { // Show 'E' icon within 3 units
+            keyDisplayQueue.down('e'); // Highlight 'E' (shows and red)
+            if (distance < 3 && distance > 2) { // Console prompt
+                console.log('Press E to grab the key!');
+            }
+        } else {
+            keyDisplayQueue.up('e'); // Hide 'E'
+        }
+    } else {
+        keyDisplayQueue.up('e'); // Ensure hidden if grabbed or no key
+    }
 
     // Update third person camera
     if (thirdPersonCamera) {
