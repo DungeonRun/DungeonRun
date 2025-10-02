@@ -130,7 +130,8 @@ new GLTFLoader().load(
 
         thirdPersonCamera = new ThirdPersonCamera({
             camera: camera,
-            target: model
+            target: model,
+            scene: scene
         });
 
         characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle');
