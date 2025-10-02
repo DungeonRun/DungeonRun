@@ -5,6 +5,7 @@ import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 export class EnemyMovement {
     constructor(scene, player, startPosition = new THREE.Vector3(0, 1, 0), type = "mutant") {
         this.raycaster = new THREE.Raycaster();
+        this.groundRaycaster = new THREE.Raycaster();
         this.scene = scene;
         this.enemyModel = null;
         this.spotLight = null;
@@ -12,6 +13,7 @@ export class EnemyMovement {
         this.lag = 0.05; // Movement speed
         this.startPosition = startPosition;
         this.type = type; // "mutant" or "scaryMonster"
+        this.groundOffset = 0; // Will be set based on enemy type
 
         this.mixer = null; // For FBX animations
 
@@ -23,7 +25,6 @@ export class EnemyMovement {
         } else if (this.type === "monsterEye") {
             this.loadMonsterEye(); 
         }
-
     }
 
     loadMutant() {
@@ -41,6 +42,7 @@ export class EnemyMovement {
                 });
 
                 this.enemyModel = fbx;
+                this.groundOffset = 1; // Raised to keep feet on ground
                 this.scene.add(this.enemyModel);
 
                 this.mixer = new THREE.AnimationMixer(fbx);
@@ -50,6 +52,7 @@ export class EnemyMovement {
                 }
 
                 this.initSpotlight();
+                this.updateGroundPosition(); // Set initial ground position
             },
             (xhr) => console.log(`Mutant ${(xhr.loaded / xhr.total) * 100}% loaded`),
             (err) => console.error('Error loading Mutant:', err)
@@ -84,6 +87,7 @@ export class EnemyMovement {
                 });
 
                 this.enemyModel = fbx;
+                this.groundOffset = 0; // Adjust this if needed for scary monster
                 this.scene.add(this.enemyModel);
 
                 this.mixer = new THREE.AnimationMixer(fbx);
@@ -93,59 +97,60 @@ export class EnemyMovement {
                 }
 
                 this.initSpotlight();
+                this.updateGroundPosition(); // Set initial ground position
             },
             (xhr) => console.log(`ScaryMonster ${(xhr.loaded / xhr.total) * 100}% loaded`),
             (err) => console.error('Error loading ScaryMonster:', err)
         );
     }
 
-    // enemyMovement.js (excerpt)
-
     loadMonsterEye() {
-    const loader = new FBXLoader();
-    loader.load(
-        '/src/models/monsterEye/monster_eye1.fbx',
-        (fbx) => {
-            fbx.scale.set(0.05, 0.05, 0.05);
-            fbx.position.copy(this.startPosition);
+        const loader = new FBXLoader();
+        loader.load(
+            '/src/models/monsterEye/monster_eye1.fbx',
+            (fbx) => {
+                fbx.scale.set(0.05, 0.05, 0.05);
+                fbx.position.copy(this.startPosition);
 
-            // Apply textures
-            fbx.traverse((child) => {
-                if (child.isMesh) {
-                    child.castShadow = true;
-                    child.receiveShadow = true;
+                // Apply textures
+                fbx.traverse((child) => {
+                    if (child.isMesh) {
+                        child.castShadow = true;
+                        child.receiveShadow = true;
 
-                    const textureLoader = new THREE.TextureLoader();
-                    const baseColor = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Basecolor.png');
-                    const normalMap = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Normal.png');
-                    const metalnessMap = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Metallic.png');
-                    const roughnessMap = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Roughness.png');
+                        const textureLoader = new THREE.TextureLoader();
+                        const baseColor = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Basecolor.png');
+                        const normalMap = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Normal.png');
+                        const metalnessMap = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Metallic.png');
+                        const roughnessMap = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Roughness.png');
 
-                    child.material = new THREE.MeshStandardMaterial({
-                        map: baseColor,
-                        normalMap: normalMap,
-                        metalnessMap: metalnessMap,
-                        roughnessMap: roughnessMap
-                    });
+                        child.material = new THREE.MeshStandardMaterial({
+                            map: baseColor,
+                            normalMap: normalMap,
+                            metalnessMap: metalnessMap,
+                            roughnessMap: roughnessMap
+                        });
+                    }
+                });
+
+                this.enemyModel = fbx;
+                this.groundOffset = 0; // Adjust this if needed for monster eye
+                this.scene.add(this.enemyModel);
+
+                // Animations 
+                this.mixer = new THREE.AnimationMixer(fbx);
+                if (fbx.animations.length > 0) {
+                    const action = this.mixer.clipAction(fbx.animations[0]);
+                    action.play();
                 }
-            });
 
-            this.enemyModel = fbx;
-            this.scene.add(this.enemyModel);
-
-            // Animations 
-            this.mixer = new THREE.AnimationMixer(fbx);
-            if (fbx.animations.length > 0) {
-                const action = this.mixer.clipAction(fbx.animations[0]);
-                action.play();
-            }
-
-            this.initSpotlight();
-        },
-        (xhr) => console.log(`Monster Eye ${(xhr.loaded / xhr.total) * 100}% loaded`),
-        (err) => console.error('Error loading Monster Eye:', err)
-    );
-}
+                this.initSpotlight();
+                this.updateGroundPosition(); // Set initial ground position
+            },
+            (xhr) => console.log(`Monster Eye ${(xhr.loaded / xhr.total) * 100}% loaded`),
+            (err) => console.error('Error loading Monster Eye:', err)
+        );
+    }
 
     initSpotlight() {
         if (!this.enemyModel) return;
@@ -158,6 +163,36 @@ export class EnemyMovement {
         this.spotLight.target.position.copy(this.player.position);
         this.scene.add(this.spotLight);
         this.scene.add(this.spotLight.target);
+    }
+
+    updateGroundPosition() {
+        if (!this.enemyModel) return;
+
+        // Cast a ray downward from high above the enemy
+        const rayOrigin = new THREE.Vector3(
+            this.enemyModel.position.x,
+            this.enemyModel.position.y + 50,
+            this.enemyModel.position.z
+        );
+        const rayDirection = new THREE.Vector3(0, -1, 0);
+        
+        this.groundRaycaster.set(rayOrigin, rayDirection);
+        this.groundRaycaster.far = 100; // Make sure we can reach the ground
+
+        // Get all objects except the enemy itself and spotlights
+        const objectsToTest = this.scene.children.filter(obj => 
+            obj !== this.enemyModel && 
+            obj !== this.spotLight && 
+            obj.type !== 'SpotLight' &&
+            obj.isMesh
+        );
+        
+        const intersects = this.groundRaycaster.intersectObjects(objectsToTest, true);
+
+        if (intersects.length > 0) {
+            // Set enemy position to be on the ground
+            this.enemyModel.position.y = intersects[0].point.y + this.groundOffset;
+        }
     }
 
     checkForTarget() {
@@ -181,11 +216,15 @@ export class EnemyMovement {
             if (hit.name === 'player' || hit.parent?.name === 'player') {
                 if (distance > 2) {
                     this.enemyModel.position.add(directionToPlayer.clone().multiplyScalar(this.lag));
+                    // Update ground position after moving
+                    this.updateGroundPosition();
                 }
             }
         } else {
             if (distance > 2) {
                 this.enemyModel.position.add(directionToPlayer.clone().multiplyScalar(this.lag));
+                // Update ground position after moving
+                this.updateGroundPosition();
             }
         }
 
