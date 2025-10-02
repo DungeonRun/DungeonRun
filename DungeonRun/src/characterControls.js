@@ -13,8 +13,8 @@ class CharacterControls {
         this.rotateAngle = new THREE.Vector3(0, 1, 0);
         this.rotateQuarternion = new THREE.Quaternion();
         this.fadeDuration = 0.2;
-        this.runVelocity = 5;
-        this.walkVelocity = 2;
+        this.runVelocity = 6; // Slightly faster for better responsiveness
+        this.walkVelocity = 3; // Slightly faster for better responsiveness
 
         this.animationsMap.forEach((value, key) => {
             if (key === currentAction) {
@@ -51,28 +51,59 @@ class CharacterControls {
         this.mixer.update(delta);
 
         if (this.currentAction === 'Run' || this.currentAction === 'Walk') {
-            // Get camera from thirdPersonCamera
-            const camera = this.thirdPersonCamera._camera;
-            const angleYCameraDirection = Math.atan2(
-                (camera.position.x - this.model.position.x),
-                (camera.position.z - this.model.position.z)
-            );
-            const directionOffset = this.directionOffset(keysPressed);
+            // Calculate movement direction based on camera and keys pressed
+            let moveDirection = new THREE.Vector3(0, 0, 0);
+            
+            // Get camera's azimuthal angle to calculate forward and right directions
+            const azimuthalAngle = this.thirdPersonCamera._azimuthalAngle;
+            
+            // Calculate forward direction (where camera is looking)
+            const cameraForward = new THREE.Vector3();
+            cameraForward.x = Math.sin(azimuthalAngle);
+            cameraForward.z = Math.cos(azimuthalAngle);
+            cameraForward.y = 0;
+            cameraForward.normalize();
+            
+            // Calculate right direction (perpendicular to forward)
+            const cameraRight = new THREE.Vector3();
+            cameraRight.x = -Math.cos(azimuthalAngle);
+            cameraRight.z = Math.sin(azimuthalAngle);
+            cameraRight.y = 0;
+            cameraRight.normalize();
 
-            this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angleYCameraDirection + directionOffset);
-            this.model.quaternion.rotateTowards(this.rotateQuarternion, 0.2);
+            // Calculate movement based on keys pressed
+            if (keysPressed[UP]) {
+                moveDirection.add(cameraForward);
+            }
+            if (keysPressed[DOWN]) {
+                moveDirection.sub(cameraForward);
+            }
+            if (keysPressed[LEFT]) {
+                moveDirection.sub(cameraRight);
+            }
+            if (keysPressed[RIGHT]) {
+                moveDirection.add(cameraRight);
+            }
 
-            camera.getWorldDirection(this.walkDirection);
-            this.walkDirection.y = 0;
-            this.walkDirection.normalize();
-            this.walkDirection.applyAxisAngle(this.rotateAngle, directionOffset);
+            // Normalize movement direction
+            if (moveDirection.length() > 0) {
+                moveDirection.normalize();
+                
+                // Set character rotation to face movement direction
+                // Add PI to make character face forward instead of backward
+                const angle = Math.atan2(moveDirection.x, moveDirection.z) + Math.PI;
+                this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
+                // Faster rotation for smoother direction changes (0.2 -> 0.3)
+                this.model.quaternion.rotateTowards(this.rotateQuarternion, 0.3);
 
-            const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
-
-            const moveX = this.walkDirection.x * velocity * delta;
-            const moveZ = this.walkDirection.z * velocity * delta;
-            this.model.position.x += moveX;
-            this.model.position.z += moveZ;
+                // Move the character directly in the movement direction
+                // This ensures movement matches the intended direction exactly
+                const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
+                const moveX = moveDirection.x * velocity * delta;
+                const moveZ = moveDirection.z * velocity * delta;
+                this.model.position.x += moveX;
+                this.model.position.z += moveZ;
+            }
         }
     }
 
