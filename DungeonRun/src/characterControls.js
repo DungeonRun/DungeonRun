@@ -12,9 +12,10 @@ class CharacterControls {
         this.walkDirection = new THREE.Vector3();
         this.rotateAngle = new THREE.Vector3(0, 1, 0);
         this.rotateQuarternion = new THREE.Quaternion();
-        this.fadeDuration = 0.2;
-        this.runVelocity = 6; // Slightly faster for better responsiveness
-        this.walkVelocity = 3; // Slightly faster for better responsiveness
+        this.fadeDuration = 0.15; // Faster animation transitions
+        this.runVelocity = 5.5; // Balanced speed
+        this.walkVelocity = 2.5; // Balanced speed
+        this.rotationSpeed = 0.25; // Smooth rotation speed
 
         this.animationsMap.forEach((value, key) => {
             if (key === currentAction) {
@@ -54,21 +55,20 @@ class CharacterControls {
             // Calculate movement direction based on camera and keys pressed
             let moveDirection = new THREE.Vector3(0, 0, 0);
             
-            // Get camera's azimuthal angle to calculate forward and right directions
-            const azimuthalAngle = this.thirdPersonCamera._azimuthalAngle;
+            // Get camera direction for movement
+            // Camera looks toward player, so forward is from camera to player
+            const cameraWorldPos = this.thirdPersonCamera._camera.getWorldPosition(new THREE.Vector3());
+            const playerPos = this.model.position.clone();
             
-            // Calculate forward direction (where camera is looking)
+            // Calculate forward direction (toward where camera is looking)
             const cameraForward = new THREE.Vector3();
-            cameraForward.x = Math.sin(azimuthalAngle);
-            cameraForward.z = Math.cos(azimuthalAngle);
-            cameraForward.y = 0;
+            cameraForward.subVectors(playerPos, cameraWorldPos);
+            cameraForward.y = 0; // Ignore vertical component
             cameraForward.normalize();
             
             // Calculate right direction (perpendicular to forward)
             const cameraRight = new THREE.Vector3();
-            cameraRight.x = -Math.cos(azimuthalAngle);
-            cameraRight.z = Math.sin(azimuthalAngle);
-            cameraRight.y = 0;
+            cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0));
             cameraRight.normalize();
 
             // Calculate movement based on keys pressed
@@ -93,8 +93,9 @@ class CharacterControls {
                 // Add PI to make character face forward instead of backward
                 const angle = Math.atan2(moveDirection.x, moveDirection.z) + Math.PI;
                 this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
-                // Faster rotation for smoother direction changes (0.2 -> 0.3)
-                this.model.quaternion.rotateTowards(this.rotateQuarternion, 0.3);
+                
+                // Smooth, frame-rate independent rotation
+                this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);
 
                 // Move the character directly in the movement direction
                 // This ensures movement matches the intended direction exactly
