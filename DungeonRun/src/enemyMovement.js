@@ -16,6 +16,9 @@ export class EnemyMovement {
         this.groundOffset = 0; // Will be set based on enemy type
 
         this.mixer = null; // For FBX animations
+        this.animationsMap = new Map(); // Store all animations
+        this.currentAction = null; // Current playing animation
+        this.isMoving = false; // Track if enemy is moving
 
         // Choose which enemy to load
         if (this.type === "mutant") {
@@ -47,8 +50,15 @@ export class EnemyMovement {
 
                 this.mixer = new THREE.AnimationMixer(fbx);
                 if (fbx.animations.length > 0) {
-                    const action = this.mixer.clipAction(fbx.animations[0]);
-                    action.play();
+                    // Store all animations
+                    fbx.animations.forEach((clip, index) => {
+                        const action = this.mixer.clipAction(clip);
+                        this.animationsMap.set(index, action);
+                        console.log(`Mutant animation ${index}: ${clip.name}`);
+                    });
+                    // Play first animation as default
+                    this.currentAction = this.animationsMap.get(0);
+                    if (this.currentAction) this.currentAction.play();
                 }
 
                 this.initSpotlight();
@@ -92,8 +102,15 @@ export class EnemyMovement {
 
                 this.mixer = new THREE.AnimationMixer(fbx);
                 if (fbx.animations.length > 0) {
-                    const action = this.mixer.clipAction(fbx.animations[0]);
-                    action.play();
+                    // Store all animations
+                    fbx.animations.forEach((clip, index) => {
+                        const action = this.mixer.clipAction(clip);
+                        this.animationsMap.set(index, action);
+                        console.log(`ScaryMonster animation ${index}: ${clip.name}`);
+                    });
+                    // Play first animation as default
+                    this.currentAction = this.animationsMap.get(0);
+                    if (this.currentAction) this.currentAction.play();
                 }
 
                 this.initSpotlight();
@@ -140,8 +157,15 @@ export class EnemyMovement {
                 // Animations 
                 this.mixer = new THREE.AnimationMixer(fbx);
                 if (fbx.animations.length > 0) {
-                    const action = this.mixer.clipAction(fbx.animations[0]);
-                    action.play();
+                    // Store all animations
+                    fbx.animations.forEach((clip, index) => {
+                        const action = this.mixer.clipAction(clip);
+                        this.animationsMap.set(index, action);
+                        console.log(`MonsterEye animation ${index}: ${clip.name}`);
+                    });
+                    // Play first animation as default
+                    this.currentAction = this.animationsMap.get(0);
+                    if (this.currentAction) this.currentAction.play();
                 }
 
                 this.initSpotlight();
@@ -195,6 +219,20 @@ export class EnemyMovement {
         }
     }
 
+    switchAnimation(animationIndex) {
+        if (!this.animationsMap.has(animationIndex)) return;
+        
+        const newAction = this.animationsMap.get(animationIndex);
+        if (newAction === this.currentAction) return;
+        
+        if (this.currentAction) {
+            this.currentAction.fadeOut(0.2);
+        }
+        
+        newAction.reset().fadeIn(0.2).play();
+        this.currentAction = newAction;
+    }
+
     checkForTarget() {
         if (!this.player || !this.enemyModel) return;
 
@@ -211,10 +249,20 @@ export class EnemyMovement {
 
         const distance = this.enemyModel.position.distanceTo(this.player.position);
 
+        let shouldMove = false;
+
         if (intersects.length > 0) {
             const hit = intersects[0].object;
             if (hit.name === 'player' || hit.parent?.name === 'player') {
                 if (distance > 2) {
+                    shouldMove = true;
+                    // Rotate enemy to face player
+                    const angle = Math.atan2(
+                        this.player.position.x - this.enemyModel.position.x,
+                        this.player.position.z - this.enemyModel.position.z
+                    );
+                    this.enemyModel.rotation.y = angle;
+                    
                     this.enemyModel.position.add(directionToPlayer.clone().multiplyScalar(this.lag));
                     // Update ground position after moving
                     this.updateGroundPosition();
@@ -222,10 +270,29 @@ export class EnemyMovement {
             }
         } else {
             if (distance > 2) {
+                shouldMove = true;
+                // Rotate enemy to face player
+                const angle = Math.atan2(
+                    this.player.position.x - this.enemyModel.position.x,
+                    this.player.position.z - this.enemyModel.position.z
+                );
+                this.enemyModel.rotation.y = angle;
+                
                 this.enemyModel.position.add(directionToPlayer.clone().multiplyScalar(this.lag));
                 // Update ground position after moving
                 this.updateGroundPosition();
             }
+        }
+
+        // Switch between walk and idle animations
+        if (shouldMove && !this.isMoving) {
+            // Start walking - try animation index 1 (usually walk/run)
+            this.switchAnimation(1);
+            this.isMoving = true;
+        } else if (!shouldMove && this.isMoving) {
+            // Stop walking - back to idle (animation index 0)
+            this.switchAnimation(0);
+            this.isMoving = false;
         }
 
         if (this.spotLight) {
