@@ -73,18 +73,24 @@ function generateFloor() {
         const WIDTH = 80;
         const LENGTH = 80;
 
-        const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 512, 512);
+        // Reduced geometry detail for better performance and less visual noise
+        // 512x512 was creating too much detail causing shimmer during movement
+        const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 100, 100);
         const material = new THREE.MeshStandardMaterial({
             map: sandBaseColor,
             normalMap: sandNormalMap,
             displacementMap: sandHeightMap,
-            displacementScale: 0.1,
-            aoMap: sandAmbientOcclusion
+            displacementScale: 0.05, // Reduced for less pronounced displacement
+            aoMap: sandAmbientOcclusion,
+            roughness: 0.9, // More matte for sand
+            metalness: 0.0  // Sand is not metallic
         });
 
         function wrapAndRepeatTexture(map) {
             map.wrapS = map.wrapT = THREE.RepeatWrapping;
-            map.repeat.set(10, 10);
+            map.repeat.set(8, 8); // Reduced from 10x10 for less repetitive pattern
+            // Add anisotropic filtering to reduce texture shimmering during movement
+            map.anisotropy = renderer.capabilities.getMaxAnisotropy();
         }
 
         wrapAndRepeatTexture(material.map);

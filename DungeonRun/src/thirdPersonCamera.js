@@ -23,24 +23,38 @@ class ThirdPersonCamera {
         this._scene.remove(this._camera);
         this._cameraPivot.add(this._camera);
 
-        // Camera configuration - Fortnite style positioning
-        // Over-the-shoulder view: slightly right, above, and behind
-        // Fortnite typically has camera closer to player for tighter control feel
-        this._cameraOffset = new THREE.Vector3(1.5, 4.5, -7); // Closer Fortnite-style positioning
-        this._lookatOffset = new THREE.Vector3(0, 1.8, 2); // Look slightly ahead of player
+        // Camera configuration - Professional third-person positioning
+        // Over-the-shoulder view with realistic distance and angles
+        this._cameraOffset = new THREE.Vector3(1.2, 4, -6); // Optimal professional positioning
+        this._lookatOffset = new THREE.Vector3(0, 1.6, 1.5); // Look ahead at upper body level
 
         // Mouse sensitivity and rotation limits
-        this._mouseSensitivity = 0.002;
-        this._minPolarAngle = Math.PI * 0.1; // Prevent looking too far up
-        this._maxPolarAngle = Math.PI * 0.8; // Prevent looking too far down
+        this._mouseSensitivity = 0.0025; // Slightly increased for better control
+        this._minPolarAngle = Math.PI * 0.15; // Allow looking more up
+        this._maxPolarAngle = Math.PI * 0.75; // Allow looking more down
         
         // Current rotation angles
-        this._azimuthalAngle = Math.PI; // Start behind the player (PI radians = 180 degrees = behind)
-        this._polarAngle = Math.PI * 0.4; // Vertical rotation (start slightly looking down)
+        this._azimuthalAngle = Math.PI; // Start behind the player
+        this._polarAngle = Math.PI * 0.38; // Optimal viewing angle
         
-        // Smooth following
+        // Smooth following with separate speeds
         this._currentPivotPosition = new THREE.Vector3();
         this._currentLookatPosition = new THREE.Vector3();
+        this._targetCameraOffset = new THREE.Vector3();
+        
+        // Smoothing factors for different camera behaviors
+        // Higher values = more responsive, lower = smoother but can feel floaty
+        this._positionSmoothSpeed = 0.12; // Position following - balanced
+        this._rotationSmoothSpeed = 0.15; // Rotation following - smooth
+        this._lookAtSmoothSpeed = 0.1; // Look-at smoothing - very smooth to avoid shake
+        
+        // Camera auto-rotation behind player (when moving)
+        this._autoRotateSpeed = 0.015; // VERY GENTLE drift back behind player
+        this._autoRotateEnabled = false; // Disabled to eliminate shake - pure free-cam
+        
+        // Camera state for dynamic adjustments
+        this._currentCameraDistance = 6;
+        this._targetCameraDistance = 6;
 
         // Mouse control state
         this._isMouseLocked = false;
@@ -98,6 +112,13 @@ class ThirdPersonCamera {
         });
     }
 
+    _normalizeAngle(angle) {
+        // Normalize angle to [-PI, PI] range for smooth interpolation
+        while (angle > Math.PI) angle -= Math.PI * 2;
+        while (angle < -Math.PI) angle += Math.PI * 2;
+        return angle;
+    }
+
     _UpdateCameraPosition() {
         this._UpdateCameraPositionWithAngle(this._azimuthalAngle);
     }
@@ -123,28 +144,29 @@ class ThirdPersonCamera {
     Update(deltaTime) {
         if (!this._target) return;
 
-        // Get player's rotation to keep camera behind them
-        const playerRotation = this._target.quaternion.clone();
-        const playerEuler = new THREE.Euler().setFromQuaternion(playerRotation);
-        
-        // Adjust camera azimuthal angle to stay behind player
-        // Subtract the player's Y rotation to keep camera behind them
-        const baseAzimuthalAngle = this._azimuthalAngle;
-        const adjustedAzimuthalAngle = baseAzimuthalAngle - playerEuler.y;
+        // Clamp delta time to prevent large jumps
+        const clampedDelta = Math.min(deltaTime, 0.1);
 
-        // Smoothly follow target position
+        // Use camera's own rotation angle (no player rotation tracking)
+        // This eliminates shake from player rotation changes
+        const adjustedAzimuthalAngle = this._azimuthalAngle;
+
+        // Smoothly follow target position with frame-rate independent interpolation
         const targetPosition = this._target.position.clone();
-        const t = 1.0 - Math.pow(0.02, deltaTime); // Balanced - smooth but responsive
+        const positionT = 1.0 - Math.pow(1 - this._positionSmoothSpeed, clampedDelta * 60);
         
-        this._currentPivotPosition.lerp(targetPosition, t);
+        this._currentPivotPosition.lerp(targetPosition, positionT);
         this._cameraPivot.position.copy(this._currentPivotPosition);
 
         // Update camera position with adjusted angle to stay behind player
         this._UpdateCameraPositionWithAngle(adjustedAzimuthalAngle);
 
-        // Smooth lookat following
+        // Smooth lookat following with separate smoothing for more natural feel
+        const lookAtT = 1.0 - Math.pow(1 - this._lookAtSmoothSpeed, clampedDelta * 60);
         const idealLookat = targetPosition.clone().add(this._lookatOffset);
-        this._currentLookatPosition.lerp(idealLookat, t);
+        this._currentLookatPosition.lerp(idealLookat, lookAtT);
+        
+        // Use simple lookAt for stable camera (no quaternion slerp jitter)
         this._camera.lookAt(this._currentLookatPosition);
     }
 
