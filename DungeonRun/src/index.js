@@ -200,8 +200,9 @@ function animate() {
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keysPressed);
     }
-    if (enemyMovement1) enemyMovement1.update();
-    if (enemyMovement2) enemyMovement2.update();
+   if (enemyMovement1) enemyMovement1.update(mixerUpdateDelta);
+   if (enemyMovement2) enemyMovement2.update(mixerUpdateDelta);
+
 
     // Animate the key if loaded
     if (keyAnimator) {
