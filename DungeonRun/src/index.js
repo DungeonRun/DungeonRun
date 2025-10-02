@@ -13,8 +13,8 @@ const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xa8def0);
 
 let keyAnimator = null;
-let keyObject = null; // Reference to the key for grabbing
-let isKeyGrabbed = false; // Global flag
+let keyObject = null; 
+let isKeyGrabbed = false; 
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -31,7 +31,6 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 
-// Third person camera (will be initialized after model loads)
 let thirdPersonCamera;
 
 // Lighting
@@ -106,6 +105,8 @@ function generateFloor() {
 let characterControls;
 let enemyMovement1;
 let enemyMovement2;
+let scaryMonster1;
+let enemyMovement3;
 
 new GLTFLoader().load(
     '/src/models/Soldier.glb',
@@ -114,10 +115,10 @@ new GLTFLoader().load(
         model.traverse(function (object) {
             if (object.isMesh) {
                 object.castShadow = true;
-                object.name = 'player'; // Ensure all meshes are named "player"
+                object.name = 'player';
             }
         });
-        model.name = 'player'; // Ensure the root is named "player"
+        model.name = 'player';
         scene.add(model);
 
         const gltfAnimations = gltf.animations;
@@ -127,7 +128,6 @@ new GLTFLoader().load(
             animationsMap.set(a.name, mixer.clipAction(a));
         });
 
-        // Initialize third person camera
         thirdPersonCamera = new ThirdPersonCamera({
             camera: camera,
             target: model
@@ -135,9 +135,11 @@ new GLTFLoader().load(
 
         characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle');
 
-        // Spawn 2 enemies with different start positions
-        enemyMovement1 = new EnemyMovement(scene, model, new THREE.Vector3(0, 1, 0));  // default position
-        enemyMovement2 = new EnemyMovement(scene, model, new THREE.Vector3(5, 1, -5)); // offset enemy
+        // Enemies
+        enemyMovement1 = new EnemyMovement(scene, model, new THREE.Vector3(0, 1, 0), "mutant");
+        enemyMovement2 = new EnemyMovement(scene, model, new THREE.Vector3(5, 1, -5), "mutant");
+        scaryMonster1 = new EnemyMovement(scene, model, new THREE.Vector3(-5, 1, -10), "scaryMonster");
+        enemyMovement3 = new EnemyMovement(scene, model, new THREE.Vector3(10, 1, -5), "monsterEye"); 
     },
     undefined,
     function (error) {
@@ -145,10 +147,10 @@ new GLTFLoader().load(
     }
 );
 
-// Load the glowing key (positioned on the floor for visibility)
+// Load glowing key
 addGlowingKey(scene).then(({ animator, key }) => {
     keyAnimator = animator;
-    keyObject = key; // Store reference
+    keyObject = key;
     console.log('Glowing key loaded and ready!');
 }).catch(error => {
     console.error('Failed to load glowing key:', error);
@@ -156,40 +158,35 @@ addGlowingKey(scene).then(({ animator, key }) => {
 
 // Keyboard controls
 const keysPressed = {};
-const keyDisplayQueue = new KeyDisplay(); // Now has extended KeyDisplay
+const keyDisplayQueue = new KeyDisplay();
+
 document.addEventListener('keydown', (event) => {
     keyDisplayQueue.down(event.key);
     keysPressed[event.key.toLowerCase()] = true;
 
-    // Grab logic: Check if 'e' pressed and close to key (neat, non-breaking)
     if (event.key.toLowerCase() === 'e' && keyObject && !isKeyGrabbed && characterControls) {
-        const playerPos = characterControls.model.position; // Access player position
+        const playerPos = characterControls.model.position;
         const keyPos = keyObject.position;
         const distance = playerPos.distanceTo(keyPos);
-        if (distance < 0.5) { // Grab within 2 units
+        if (distance < 0.5) {
             grabKey();
         }
     }
 }, false);
+
 document.addEventListener('keyup', (event) => {
     keyDisplayQueue.up(event.key);
     keysPressed[event.key.toLowerCase()] = false;
 }, false);
 
-// Add this new function for grabbing (hides key and updates status)
 function grabKey() {
     if (!keyObject || isKeyGrabbed) return;
     
     isKeyGrabbed = true;
     keyObject.userData.isGrabbed = true;
-    keyObject.visible = false; // Hide the key instead of attaching
-    
-    // Update status display via KeyDisplay
+    keyObject.visible = false;
     keyDisplayQueue.updateKeyStatus('yes');
-    
-    // Ensure 'E' is hidden after grab
     keyDisplayQueue.up('e');
-    
     console.log('Key grabbed! Status updated to yes.');
 }
 
@@ -200,32 +197,30 @@ function animate() {
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keysPressed);
     }
-   if (enemyMovement1) enemyMovement1.update(mixerUpdateDelta);
-   if (enemyMovement2) enemyMovement2.update(mixerUpdateDelta);
+    if (enemyMovement1) enemyMovement1.update(mixerUpdateDelta);
+    if (enemyMovement2) enemyMovement2.update(mixerUpdateDelta);
+    if (scaryMonster1) scaryMonster1.update(mixerUpdateDelta);
+    if (enemyMovement3) enemyMovement3.update(mixerUpdateDelta);
 
-
-    // Animate the key if loaded
     if (keyAnimator) {
         keyAnimator();
     }
 
-    // Proximity check: Show 'E' icon only when near and not grabbed
     if (keyObject && !isKeyGrabbed && characterControls) {
         const playerPos = characterControls.model.position;
         const distance = playerPos.distanceTo(keyObject.position);
-        if (distance < 3) { // Show 'E' icon within 3 units
-            keyDisplayQueue.down('e'); // Highlight 'E' (shows and red)
-            if (distance < 3 && distance > 2) { // Console prompt
+        if (distance < 3) {
+            keyDisplayQueue.down('e');
+            if (distance < 3 && distance > 2) {
                 console.log('Press E to grab the key!');
             }
         } else {
-            keyDisplayQueue.up('e'); // Hide 'E'
+            keyDisplayQueue.up('e');
         }
     } else {
-        keyDisplayQueue.up('e'); // Ensure hidden if grabbed or no key
+        keyDisplayQueue.up('e');
     }
 
-    // Update third person camera
     if (thirdPersonCamera) {
         thirdPersonCamera.Update(mixerUpdateDelta);
     }
@@ -234,7 +229,6 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
-// Resize handler
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -243,7 +237,6 @@ function onWindowResize() {
 }
 window.addEventListener('resize', onWindowResize);
 
-// Initialize scene
 light();
 generateFloor();
 animate();
