@@ -4,6 +4,7 @@ import { EnemyMovement } from '../movements/enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { CharacterControls } from '../movements/characterControls.js';
 import { addGlowingKey } from '../keyGlow.js';
+import { EnemyHealthBar } from '../view/enemyHealthBar.js';
 
 export async function loadDemoLevel({
     scene,
@@ -101,13 +102,24 @@ export async function loadDemoLevel({
             if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera });
 
             // Enemies
-            const enemies = [
-                new EnemyMovement(scene, model, new THREE.Vector3(0, 1, 0), "mutant"),
-                new EnemyMovement(scene, model, new THREE.Vector3(5, 1, -5), "mutant"),
-                new EnemyMovement(scene, model, new THREE.Vector3(-5, 1, -10), "scaryMonster"),
-                new EnemyMovement(scene, model, new THREE.Vector3(10, 1, -5), "monsterEye")
+            const enemies = [];
+            const enemyHealthBars = [];
+            const enemyConfigs = [
+                { pos: new THREE.Vector3(0, 1, 0), type: "mutant" },
+                { pos: new THREE.Vector3(5, 1, -5), type: "mutant" },
+                { pos: new THREE.Vector3(-5, 1, -10), type: "scaryMonster" },
+                { pos: new THREE.Vector3(10, 1, -5), type: "monsterEye" }
             ];
-            if (onEnemiesLoaded) onEnemiesLoaded(enemies);
+
+            enemyConfigs.forEach(cfg => {
+                const enemy = new EnemyMovement(scene, model, cfg.pos, cfg.type, (enemyModel) => {
+                    // Only create health bar after model is loaded
+                    const bar = new EnemyHealthBar(enemyModel, { maxHealth: 100 });
+                    enemyHealthBars.push(bar);
+                });
+                enemies.push(enemy);
+            });
+            if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars });
         }
     );
 

@@ -7,7 +7,6 @@ import { KeyDisplay } from './utils.js';
 import { EnemyMovement } from './enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { addGlowingKey } from '../keyGlow.js';
-import { EnemyHealthBar } from '../view/enemyHealthBar.js';
 import { loadDemoLevel } from '../levels/demoLevel.js';
 
 
@@ -29,6 +28,8 @@ camera.position.set(0, 5, 5);
 
 // Renderer setup
 const canvas = document.querySelector('#gameCanvas');
+
+
 if (!canvas) {
     console.error('Canvas with id="gameCanvas" not found!');
     throw new Error('Canvas element not found');
@@ -53,6 +54,8 @@ function clearScene() {
     characterControls = null;
     thirdPersonCamera = null;
     enemies = [];
+    enemyHealthBars.forEach(bar => bar && bar.remove());
+    enemyHealthBars = [];
 }
 
 // Level loading
@@ -66,8 +69,9 @@ async function loadLevel(levelLoader) {
             characterControls = cc;
             thirdPersonCamera = cam;
         },
-        onEnemiesLoaded: (enemyArr) => {
+        onEnemiesLoaded: ({ enemies: enemyArr, enemyHealthBars: bars }) => {
             enemies = enemyArr;
+            enemyHealthBars = bars;
         },
         onKeyLoaded: ({ animator, key }) => {
             keyAnimator = animator;
@@ -148,13 +152,13 @@ function animate() {
         keyDisplayQueue.up('e');
     }
 
-    enemyHealthBars.forEach(bar => { if (bar) bar.update(camera); });
+    enemyHealthBars.forEach(bar => { 
+        if (bar) bar.update(camera);
+    });
 
     if (thirdPersonCamera) {
         thirdPersonCamera.Update(mixerUpdateDelta);
     }
-
-    
 
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
