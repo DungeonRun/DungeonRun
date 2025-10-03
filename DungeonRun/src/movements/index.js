@@ -6,7 +6,7 @@ import { CharacterControls } from './characterControls.js';
 import { KeyDisplay } from './utils.js';
 import { EnemyMovement } from './enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
-import { addGlowingKey } from './keyGlow.js';
+import { addGlowingKey } from '../keyGlow.js';
 
 // Scene setup
 const scene = new THREE.Scene();
