@@ -1,0 +1,140 @@
+/* Body styling with animated background */
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    color: #fff;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    background: radial-gradient(circle at 50% 50%, #1a1a1a, #000 80%);
+    overflow: hidden;
+    animation: backgroundShift 15s ease-in-out infinite alternate;
+}
+
+/* Animated gradient shift */
+@keyframes backgroundShift {
+    0% { background: radial-gradient(circle at 50% 50%, #1a1a1a, #000 80%); }
+    50% { background: radial-gradient(circle at 60% 40%, #2a1a1a, #000 80%); }
+    100% { background: radial-gradient(circle at 40% 60%, #1a1a1a, #000 80%); }
+}
+
+/* Title at the top center with glowing animation */
+h1 {
+    margin: 20px 0;
+    font-size: 3em;
+    text-shadow: 0 0 10px #ff0000, 0 0 20px #ff4500;
+    letter-spacing: 3px;
+    animation: titleGlow 2s ease-in-out infinite alternate;
+}
+
+@keyframes titleGlow {
+    0% { text-shadow: 0 0 10px #ff0000, 0 0 20px #ff4500; }
+    50% { text-shadow: 0 0 20px #ff4500, 0 0 40px #ff0000; }
+    100% { text-shadow: 0 0 10px #ff0000, 0 0 20px #ff4500; }
+}
+
+/* Navigation (buttons container) */
+nav {
+    position: fixed;
+    top: 50%;
+    left: 20px;
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+/* Buttons styling */
+button {
+    background: linear-gradient(145deg, #ff0000, #8b0000);
+    border: 3px solid #ff4500;
+    color: #fff;
+    padding: 25px 60px;       /* bigger padding makes the button taller and wider */
+    font-size: 2em;           /* bigger text */
+    font-weight: bold;
+    cursor: pointer;
+    border-radius: 15px;      /* bigger rounded corners */
+    transition: all 0.3s ease;
+    box-shadow: 0 8px 20px rgba(0,0,0,0.5);
+    width: 300px;             /* optional: same width for all buttons */
+    text-align: center;
+}
+
+/* Hover effect with thrilling animation */
+button:hover {
+    background: linear-gradient(145deg, #ff4500, #ff0000);
+    transform: scale(1.1) rotate(-2deg);
+    box-shadow: 0 8px 20px rgba(255, 69, 0, 0.7), 0 0 20px rgba(255,0,0,0.5);
+    border-color: #ff0000;
+    animation: hoverPulse 0.6s ease-in-out infinite alternate;
+}
+
+@keyframes hoverPulse {
+    0% { box-shadow: 0 8px 20px rgba(255, 69, 0, 0.7), 0 0 20px rgba(255,0,0,0.5); }
+    50% { box-shadow: 0 12px 25px rgba(255, 69, 0, 0.9), 0 0 30px rgba(255,0,0,0.7); }
+    100% { box-shadow: 0 8px 20px rgba(255, 69, 0, 0.7), 0 0 20px rgba(255,0,0,0.5); }
+}
+
+/* Optional: active click effect */
+button:active {
+    transform: scale(0.95);
+    box-shadow: 0 4px 10px rgba(0,0,0,0.6);
+}
+
+/* Dungeon image */
+#dungeon-bg {
+    position: fixed;       /* fixed so it stays behind all content */
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover;     /* scale image to cover screen */
+    opacity: 0.3;          /* make it semi-transparent */
+    z-index: 0;            /* behind buttons and title */
+    pointer-events: none;  /* allow clicks to pass through */
+}
+
+/* Ensure canvas is above the dungeon image */
+#embers {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1;            /* above dungeon image */
+    pointer-events: none;
+}
+
+#highscores {
+    position: fixed;          /* stay at right side */
+    top: 50%;
+    right: 20px;
+    transform: translateY(-50%);
+    background: rgba(20, 20, 20, 0.7);  /* semi-transparent dark panel */
+    border: 2px solid #ff4500;
+    border-radius: 10px;
+    padding: 20px;
+    width: 200px;
+    color: #fff;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    z-index: 2;               /* above canvas/image */
+    box-shadow: 0 0 15px rgba(255, 69, 0, 0.7);
+}
+
+#highscores h2 {
+    text-align: center;
+    margin-top: 0;
+    margin-bottom: 15px;
+    color: #ff6347;
+    text-shadow: 0 0 5px #ff4500;
+}
+
+#highscores ol {
+    padding-left: 20px;
+}
+
+#highscores li {
+    margin-bottom: 10px;
+    font-weight: bold;
+    text-shadow: 0 0 3px rgba(255, 69, 0, 0.5);
+}
