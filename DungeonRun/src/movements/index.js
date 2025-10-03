@@ -1,13 +1,20 @@
+// index.js - main file for rendering scene essentially
+
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CharacterControls } from './characterControls.js';
 import { KeyDisplay } from './utils.js';
 import { EnemyMovement } from './enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
+import { addGlowingKey } from './keyGlow.js';
 
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xa8def0);
+
+let keyAnimator = null;
+let keyObject = null; 
+let isKeyGrabbed = false; 
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -24,7 +31,6 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 
-// Third person camera (will be initialized after model loads)
 let thirdPersonCamera;
 
 // Lighting
@@ -67,18 +73,24 @@ function generateFloor() {
         const WIDTH = 80;
         const LENGTH = 80;
 
-        const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 512, 512);
+        // Reduced geometry detail for better performance and less visual noise
+        // 512x512 was creating too much detail causing shimmer during movement
+        const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 100, 100);
         const material = new THREE.MeshStandardMaterial({
             map: sandBaseColor,
             normalMap: sandNormalMap,
             displacementMap: sandHeightMap,
-            displacementScale: 0.1,
-            aoMap: sandAmbientOcclusion
+            displacementScale: 0.05, // Reduced for less pronounced displacement
+            aoMap: sandAmbientOcclusion,
+            roughness: 0.9, // More matte for sand
+            metalness: 0.0  // Sand is not metallic
         });
 
         function wrapAndRepeatTexture(map) {
             map.wrapS = map.wrapT = THREE.RepeatWrapping;
-            map.repeat.set(10, 10);
+            map.repeat.set(8, 8); // Reduced from 10x10 for less repetitive pattern
+            // Add anisotropic filtering to reduce texture shimmering during movement
+            map.anisotropy = renderer.capabilities.getMaxAnisotropy();
         }
 
         wrapAndRepeatTexture(material.map);
@@ -99,6 +111,8 @@ function generateFloor() {
 let characterControls;
 let enemyMovement1;
 let enemyMovement2;
+let scaryMonster1;
+let enemyMovement3;
 
 new GLTFLoader().load(
     '/src/models/Soldier.glb',
@@ -107,10 +121,10 @@ new GLTFLoader().load(
         model.traverse(function (object) {
             if (object.isMesh) {
                 object.castShadow = true;
-                object.name = 'player'; // Ensure all meshes are named "player"
+                object.name = 'player';
             }
         });
-        model.name = 'player'; // Ensure the root is named "player"
+        model.name = 'player';
         scene.add(model);
 
         const gltfAnimations = gltf.animations;
@@ -120,17 +134,19 @@ new GLTFLoader().load(
             animationsMap.set(a.name, mixer.clipAction(a));
         });
 
-        // Initialize third person camera
         thirdPersonCamera = new ThirdPersonCamera({
             camera: camera,
-            target: model
+            target: model,
+            scene: scene
         });
 
         characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle');
 
-        // Spawn 2 enemies with different start positions
-        enemyMovement1 = new EnemyMovement(scene, model, new THREE.Vector3(0, 1, 0));  // default position
-        enemyMovement2 = new EnemyMovement(scene, model, new THREE.Vector3(5, 1, -5)); // offset enemy
+        // Enemies
+        enemyMovement1 = new EnemyMovement(scene, model, new THREE.Vector3(0, 1, 0), "mutant");
+        enemyMovement2 = new EnemyMovement(scene, model, new THREE.Vector3(5, 1, -5), "mutant");
+        scaryMonster1 = new EnemyMovement(scene, model, new THREE.Vector3(-5, 1, -10), "scaryMonster");
+        enemyMovement3 = new EnemyMovement(scene, model, new THREE.Vector3(10, 1, -5), "monsterEye"); 
     },
     undefined,
     function (error) {
@@ -138,17 +154,48 @@ new GLTFLoader().load(
     }
 );
 
+// Load glowing key
+addGlowingKey(scene).then(({ animator, key }) => {
+    keyAnimator = animator;
+    keyObject = key;
+    console.log('Glowing key loaded and ready!');
+}).catch(error => {
+    console.error('Failed to load glowing key:', error);
+});
+
 // Keyboard controls
 const keysPressed = {};
 const keyDisplayQueue = new KeyDisplay();
+
 document.addEventListener('keydown', (event) => {
     keyDisplayQueue.down(event.key);
     keysPressed[event.key.toLowerCase()] = true;
+
+    if (event.key.toLowerCase() === 'e' && keyObject && !isKeyGrabbed && characterControls) {
+        const playerPos = characterControls.model.position;
+        const keyPos = keyObject.position;
+        const distance = playerPos.distanceTo(keyPos);
+        if (distance < 0.5) {
+            grabKey();
+        }
+    }
 }, false);
+
 document.addEventListener('keyup', (event) => {
     keyDisplayQueue.up(event.key);
     keysPressed[event.key.toLowerCase()] = false;
 }, false);
+
+function grabKey() {
+    if (!keyObject || isKeyGrabbed) return;
+    
+    isKeyGrabbed = true;
+    keyObject.userData.isGrabbed = true;
+    keyObject.visible = false;
+    keyDisplayQueue.updateKeyStatus('yes');
+    keyDisplayQueue.up('e');
+    console.log('Key grabbed! Status updated to yes.');
+}
 
 // Animation loop
 const clock = new THREE.Clock();
@@ -157,16 +204,49 @@ function animate() {
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keysPressed);
     }
-    if (enemyMovement1) enemyMovement1.update();
-    if (enemyMovement2) enemyMovement2.update();
+    if (enemyMovement1) enemyMovement1.update(mixerUpdateDelta);
+    if (enemyMovement2) enemyMovement2.update(mixerUpdateDelta);
+    if (scaryMonster1) scaryMonster1.update(mixerUpdateDelta);
+    if (enemyMovement3) enemyMovement3.update(mixerUpdateDelta);
 
-    // Update third person camera
+    if (keyAnimator) {
+        keyAnimator();
+    }
+
+    if (keyObject && !isKeyGrabbed && characterControls) {
+        const playerPos = characterControls.model.position;
+        const distance = playerPos.distanceTo(keyObject.position);
+        if (distance < 3) {
+            keyDisplayQueue.down('e');
+            if (distance < 3 && distance > 2) {
+                console.log('Press E to grab the key!');
+            }
+        } else {
+            keyDisplayQueue.up('e');
+        }
+    } else {
+        keyDisplayQueue.up('e');
+    }
+
     if (thirdPersonCamera) {
         thirdPersonCamera.Update(mixerUpdateDelta);
     }
 
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
+}
+
+function addRoomCube() {
+    const size = 40;
+    const geometry = new THREE.BoxGeometry(size, size, size);
+    const material = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        side: THREE.BackSide //normal inversion
+    });
+    const room = new THREE.Mesh(geometry, material);
+    room.position.y = size / 2 - 0.05; 
+    room.receiveShadow = true;
+    scene.add(room);
 }
 
 // Resize handler
@@ -178,7 +258,7 @@ function onWindowResize() {
 }
 window.addEventListener('resize', onWindowResize);
 
-// Initialize scene
 light();
 generateFloor();
+addRoomCube();
 animate();

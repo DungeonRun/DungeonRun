@@ -12,9 +12,10 @@ class CharacterControls {
         this.walkDirection = new THREE.Vector3();
         this.rotateAngle = new THREE.Vector3(0, 1, 0);
         this.rotateQuarternion = new THREE.Quaternion();
-        this.fadeDuration = 0.2;
-        this.runVelocity = 5;
-        this.walkVelocity = 2;
+        this.fadeDuration = 0.15; // Faster animation transitions
+        this.runVelocity = 5.5; // Balanced speed
+        this.walkVelocity = 2.5; // Balanced speed
+        this.rotationSpeed = 0.25; // Smooth rotation speed
 
         this.animationsMap.forEach((value, key) => {
             if (key === currentAction) {
@@ -51,28 +52,59 @@ class CharacterControls {
         this.mixer.update(delta);
 
         if (this.currentAction === 'Run' || this.currentAction === 'Walk') {
-            // Get camera from thirdPersonCamera
-            const camera = this.thirdPersonCamera._camera;
-            const angleYCameraDirection = Math.atan2(
-                (camera.position.x - this.model.position.x),
-                (camera.position.z - this.model.position.z)
-            );
-            const directionOffset = this.directionOffset(keysPressed);
+            // Calculate movement direction based on camera and keys pressed
+            let moveDirection = new THREE.Vector3(0, 0, 0);
+            
+            // Get camera direction for movement
+            // Camera looks toward player, so forward is from camera to player
+            const cameraWorldPos = this.thirdPersonCamera._camera.getWorldPosition(new THREE.Vector3());
+            const playerPos = this.model.position.clone();
+            
+            // Calculate forward direction (toward where camera is looking)
+            const cameraForward = new THREE.Vector3();
+            cameraForward.subVectors(playerPos, cameraWorldPos);
+            cameraForward.y = 0; // Ignore vertical component
+            cameraForward.normalize();
+            
+            // Calculate right direction (perpendicular to forward)
+            const cameraRight = new THREE.Vector3();
+            cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0));
+            cameraRight.normalize();
 
-            this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angleYCameraDirection + directionOffset);
-            this.model.quaternion.rotateTowards(this.rotateQuarternion, 0.2);
+            // Calculate movement based on keys pressed
+            if (keysPressed[UP]) {
+                moveDirection.add(cameraForward);
+            }
+            if (keysPressed[DOWN]) {
+                moveDirection.sub(cameraForward);
+            }
+            if (keysPressed[LEFT]) {
+                moveDirection.sub(cameraRight);
+            }
+            if (keysPressed[RIGHT]) {
+                moveDirection.add(cameraRight);
+            }
 
-            camera.getWorldDirection(this.walkDirection);
-            this.walkDirection.y = 0;
-            this.walkDirection.normalize();
-            this.walkDirection.applyAxisAngle(this.rotateAngle, directionOffset);
+            // Normalize movement direction
+            if (moveDirection.length() > 0) {
+                moveDirection.normalize();
+                
+                // Set character rotation to face movement direction
+                // Add PI to make character face forward instead of backward
+                const angle = Math.atan2(moveDirection.x, moveDirection.z) + Math.PI;
+                this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
+                
+                // Smooth, frame-rate independent rotation
+                this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);
 
-            const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
-
-            const moveX = this.walkDirection.x * velocity * delta;
-            const moveZ = this.walkDirection.z * velocity * delta;
-            this.model.position.x += moveX;
-            this.model.position.z += moveZ;
+                // Move the character directly in the movement direction
+                // This ensures movement matches the intended direction exactly
+                const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
+                const moveX = moveDirection.x * velocity * delta;
+                const moveZ = moveDirection.z * velocity * delta;
+                this.model.position.x += moveX;
+                this.model.position.z += moveZ;
+            }
         }
     }
 
