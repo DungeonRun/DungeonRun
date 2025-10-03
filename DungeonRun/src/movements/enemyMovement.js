@@ -19,6 +19,8 @@ export class EnemyMovement {
         this.animationsMap = new Map(); // Store all animations
         this.currentAction = null; // Current playing animation
         this.isMoving = false; // Track if enemy is moving
+        this.bobOffset = 0; // For walking bob effect
+        this.bobSpeed = 5; // Speed of bobbing motion
 
         // Choose which enemy to load
         if (this.type === "mutant") {
@@ -50,15 +52,20 @@ export class EnemyMovement {
 
                 this.mixer = new THREE.AnimationMixer(fbx);
                 if (fbx.animations.length > 0) {
+                    console.log(`Mutant has ${fbx.animations.length} animations`);
                     // Store all animations
                     fbx.animations.forEach((clip, index) => {
                         const action = this.mixer.clipAction(clip);
                         this.animationsMap.set(index, action);
-                        console.log(`Mutant animation ${index}: ${clip.name}`);
+                        console.log(`Mutant animation ${index}: ${clip.name}, duration: ${clip.duration}s`);
                     });
-                    // Play first animation as default
+                    // Play first animation as default with adjusted speed
                     this.currentAction = this.animationsMap.get(0);
-                    if (this.currentAction) this.currentAction.play();
+                    if (this.currentAction) {
+                        this.currentAction.setLoop(THREE.LoopRepeat);
+                        this.currentAction.timeScale = 1.0; // Adjust this to match movement speed
+                        this.currentAction.play();
+                    }
                 }
 
                 this.initSpotlight();
@@ -102,15 +109,20 @@ export class EnemyMovement {
 
                 this.mixer = new THREE.AnimationMixer(fbx);
                 if (fbx.animations.length > 0) {
+                    console.log(`ScaryMonster has ${fbx.animations.length} animations`);
                     // Store all animations
                     fbx.animations.forEach((clip, index) => {
                         const action = this.mixer.clipAction(clip);
                         this.animationsMap.set(index, action);
-                        console.log(`ScaryMonster animation ${index}: ${clip.name}`);
+                        console.log(`ScaryMonster animation ${index}: ${clip.name}, duration: ${clip.duration}s`);
                     });
-                    // Play first animation as default
+                    // Play first animation as default with adjusted speed
                     this.currentAction = this.animationsMap.get(0);
-                    if (this.currentAction) this.currentAction.play();
+                    if (this.currentAction) {
+                        this.currentAction.setLoop(THREE.LoopRepeat);
+                        this.currentAction.timeScale = 1.0; // Adjust this to match movement speed
+                        this.currentAction.play();
+                    }
                 }
 
                 this.initSpotlight();
@@ -157,15 +169,20 @@ export class EnemyMovement {
                 // Animations 
                 this.mixer = new THREE.AnimationMixer(fbx);
                 if (fbx.animations.length > 0) {
+                    console.log(`MonsterEye has ${fbx.animations.length} animations`);
                     // Store all animations
                     fbx.animations.forEach((clip, index) => {
                         const action = this.mixer.clipAction(clip);
                         this.animationsMap.set(index, action);
-                        console.log(`MonsterEye animation ${index}: ${clip.name}`);
+                        console.log(`MonsterEye animation ${index}: ${clip.name}, duration: ${clip.duration}s`);
                     });
-                    // Play first animation as default
+                    // Play first animation as default with adjusted speed
                     this.currentAction = this.animationsMap.get(0);
-                    if (this.currentAction) this.currentAction.play();
+                    if (this.currentAction) {
+                        this.currentAction.setLoop(THREE.LoopRepeat);
+                        this.currentAction.timeScale = 1.0; // Adjust this to match movement speed
+                        this.currentAction.play();
+                    }
                 }
 
                 this.initSpotlight();
@@ -308,5 +325,12 @@ export class EnemyMovement {
     update(delta) {
         this.checkForTarget();
         if (this.mixer) this.mixer.update(delta);
+        
+        // Add bobbing effect when moving
+        if (this.isMoving && this.enemyModel) {
+            this.bobOffset += delta * this.bobSpeed;
+            const bobAmount = Math.sin(this.bobOffset * Math.PI * 2) * 0.05;
+            this.enemyModel.position.y += bobAmount;
+        }
     }
 }

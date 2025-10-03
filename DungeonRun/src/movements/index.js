@@ -5,8 +5,8 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CharacterControls } from './characterControls.js';
 import { KeyDisplay } from './utils.js';
 import { EnemyMovement } from './enemyMovement.js';
-import { ThirdPersonCamera } from './thirdPersonCamera.js';
-import { addGlowingKey } from './keyGlow.js';
+import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
+import { addGlowingKey } from '../keyGlow.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -73,18 +73,24 @@ function generateFloor() {
         const WIDTH = 80;
         const LENGTH = 80;
 
-        const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 512, 512);
+        // Reduced geometry detail for better performance and less visual noise
+        // 512x512 was creating too much detail causing shimmer during movement
+        const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 100, 100);
         const material = new THREE.MeshStandardMaterial({
             map: sandBaseColor,
             normalMap: sandNormalMap,
             displacementMap: sandHeightMap,
-            displacementScale: 0.1,
-            aoMap: sandAmbientOcclusion
+            displacementScale: 0.05, // Reduced for less pronounced displacement
+            aoMap: sandAmbientOcclusion,
+            roughness: 0.9, // More matte for sand
+            metalness: 0.0  // Sand is not metallic
         });
 
         function wrapAndRepeatTexture(map) {
             map.wrapS = map.wrapT = THREE.RepeatWrapping;
-            map.repeat.set(10, 10);
+            map.repeat.set(8, 8); // Reduced from 10x10 for less repetitive pattern
+            // Add anisotropic filtering to reduce texture shimmering during movement
+            map.anisotropy = renderer.capabilities.getMaxAnisotropy();
         }
 
         wrapAndRepeatTexture(material.map);
@@ -130,7 +136,8 @@ new GLTFLoader().load(
 
         thirdPersonCamera = new ThirdPersonCamera({
             camera: camera,
-            target: model
+            target: model,
+            scene: scene
         });
 
         characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle');
@@ -229,6 +236,20 @@ function animate() {
     requestAnimationFrame(animate);
 }
 
+function addRoomCube() {
+    const size = 40;
+    const geometry = new THREE.BoxGeometry(size, size, size);
+    const material = new THREE.MeshStandardMaterial({
+        color: 0xffffff,
+        side: THREE.BackSide //normal inversion
+    });
+    const room = new THREE.Mesh(geometry, material);
+    room.position.y = size / 2 - 0.05; 
+    room.receiveShadow = true;
+    scene.add(room);
+}
+
+// Resize handler
 function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
@@ -239,4 +260,5 @@ window.addEventListener('resize', onWindowResize);
 
 light();
 generateFloor();
+addRoomCube();
 animate();
