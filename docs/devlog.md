@@ -17,7 +17,9 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 - Used chat for fine tuning the codes for raycasting movement and all . yt:https://youtu.be/Mpd1MFr8HoE?si=AQsYCRLaewkZcedp
 
 ### 2. Niel Grobler
-- **Features Developed**: Added Cube
+- **Features Developed**: 
+  - Added Health bars
+  - Added Cube
   
 - **Notes**: 
 - **Additional Info**: 

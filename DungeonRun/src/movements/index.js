@@ -7,6 +7,7 @@ import { KeyDisplay } from './utils.js';
 import { EnemyMovement } from './enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { addGlowingKey } from '../keyGlow.js';
+import { EnemyHealthBar } from '../view/enemyHealthBar.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -15,6 +16,10 @@ scene.background = new THREE.Color(0xa8def0);
 let keyAnimator = null;
 let keyObject = null; 
 let isKeyGrabbed = false; 
+
+//health
+let playerHealthBar;
+let enemyHealthBars = [];
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -147,6 +152,14 @@ new GLTFLoader().load(
         enemyMovement2 = new EnemyMovement(scene, model, new THREE.Vector3(5, 1, -5), "mutant");
         scaryMonster1 = new EnemyMovement(scene, model, new THREE.Vector3(-5, 1, -10), "scaryMonster");
         enemyMovement3 = new EnemyMovement(scene, model, new THREE.Vector3(10, 1, -5), "monsterEye"); 
+
+        // NOTE: this should be loaded in as an array of enemy types, so that we can design levels more easily. has to be iterable.
+        enemyHealthBars = [
+            new EnemyHealthBar(enemyMovement1.model, { color: '#f80', width: '80px', offset: { x: -40, y: -40 } }),
+            new EnemyHealthBar(enemyMovement2.model, { color: '#f80', width: '80px', offset: { x: -40, y: -40 } }),
+            new EnemyHealthBar(scaryMonster1.model, { color: '#f80', width: '80px', offset: { x: -40, y: -40 } }),
+            new EnemyHealthBar(enemyMovement3.model, { color: '#f80', width: '80px', offset: { x: -40, y: -40 } }),
+        ];
     },
     undefined,
     function (error) {
@@ -179,6 +192,19 @@ document.addEventListener('keydown', (event) => {
             grabKey();
         }
     }
+
+    if (event.key.toLowerCase() === 'h') { // Press H to damage player
+        if (playerHealthBar) {
+            playerHealthBar.setHealth(playerHealthBar.health - 10);
+        }
+    }
+    if (event.key.toLowerCase() === 'j') { // Press J to damage all enemies
+        enemyHealthBars.forEach(bar => {
+            if (bar) bar.setHealth(bar.health - 15);
+        });
+    }
+
+
 }, false);
 
 document.addEventListener('keyup', (event) => {
@@ -228,9 +254,13 @@ function animate() {
         keyDisplayQueue.up('e');
     }
 
+    enemyHealthBars.forEach(bar => { if (bar) bar.update(camera); });
+
     if (thirdPersonCamera) {
         thirdPersonCamera.Update(mixerUpdateDelta);
     }
+
+    
 
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
