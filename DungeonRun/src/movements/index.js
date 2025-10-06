@@ -20,8 +20,7 @@ let keyObject = null;
 let isKeyGrabbed = false; 
 
 //health
-let playerHealthBar;
-let enemyHealthBars = [];
+let playerHealthBar; 
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -55,8 +54,7 @@ function clearScene() {
     characterControls = null;
     thirdPersonCamera = null;
     enemies = [];
-    enemyHealthBars.forEach(bar => bar && bar.remove());
-    enemyHealthBars = [];
+    enemies.forEach(enemy => enemy.healthBar && enemy.healthBar.remove());
     if (playerHealthBar) {
         playerHealthBar.remove();
         playerHealthBar = null;
@@ -75,9 +73,8 @@ async function loadLevel(levelLoader) {
             characterControls = cc;
             thirdPersonCamera = cam;
         },
-        onEnemiesLoaded: ({ enemies: enemyArr, enemyHealthBars: bars }) => {
+        onEnemiesLoaded: ({ enemies: enemyArr}) => {
             enemies = enemyArr;
-            enemyHealthBars = bars;
         },
         onKeyLoaded: ({ animator, key }) => {
             keyAnimator = animator;
@@ -103,15 +100,14 @@ document.addEventListener('keydown', (event) => {
         }
     }
 
+    if (event.code === 'Space') {
+        playerAttack();
+    }
+
     if (event.key.toLowerCase() === 'h') { // Press H to damage player
         if (playerHealthBar) {
             playerHealthBar.setHealth(playerHealthBar.health - 10);
         }
-    }
-    if (event.key.toLowerCase() === 'j') { // Press J to damage all enemies
-        enemyHealthBars.forEach(bar => {
-            if (bar) bar.setHealth(bar.health - 15);
-        });
     }
 
 
@@ -131,6 +127,43 @@ function grabKey() {
     keyDisplayQueue.updateKeyStatus('yes');
     keyDisplayQueue.up('e');
     console.log('Key grabbed! Status updated to yes.');
+}
+
+function playerAttack() {
+    if (!characterControls || !characterControls.model) return;
+
+    //hitbox code
+    const playerPos = characterControls.model.position.clone();
+    const forward = new THREE.Vector3(0, 0.5, -0.33).applyQuaternion(characterControls.model.quaternion);
+    const hitboxCenter = playerPos.clone().add(forward.multiplyScalar(2)); // 2 units in front
+    const hitboxSize = new THREE.Vector3(1.5, 2, 1.4); // width, height, depth
+
+    const hitbox = new THREE.Box3().setFromCenterAndSize(hitboxCenter, hitboxSize);
+
+     //visualiation
+    /*const helper = new THREE.Box3Helper(hitbox, 0xff0000);
+    scene.add(helper);
+    setTimeout(() => scene.remove(helper), 100);
+    */
+    
+    //enemy intersection, will need timeout delays for animations.
+    enemies.forEach(enemy => {
+        if (!enemy.model) return;
+        const enemyBox = new THREE.Box3().setFromObject(enemy.model);
+        if (hitbox.intersectsBox(enemyBox)) {
+            enemy.health = Math.max(0, enemy.health - 25);
+            if (enemy.healthBar) {
+                enemy.healthBar.setHealth(enemy.health);
+            }
+            if (enemy.health <= 0){
+                scene.remove(enemy.model);
+                if (enemy.healthBar){
+                    enemy.healthBar.remove();
+                }
+                enemies.splice(i, 1);
+            }
+        }
+    });
 }
 
 // Animation loop
@@ -158,8 +191,8 @@ function animate() {
         keyDisplayQueue.up('e');
     }
 
-    enemyHealthBars.forEach(bar => { 
-        if (bar) bar.update(camera);
+    enemies.forEach(enemy => { 
+        if (enemy.healthBar) enemy.healthBar.update(camera);
     });
 
     if (thirdPersonCamera) {

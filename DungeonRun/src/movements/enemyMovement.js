@@ -14,6 +14,8 @@ export class EnemyMovement {
         this.startPosition = startPosition;
         this.type = type; // "mutant" or "scaryMonster"
         this.groundOffset = 0; // Will be set based on enemy type
+        this.health = 100;
+        this.healthBar = null; 
 
         this.onModelLoaded = onModelLoaded; //for enemy healthbars
 

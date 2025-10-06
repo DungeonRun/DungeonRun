@@ -113,8 +113,8 @@ export async function loadDemoLevel({
 
             enemyConfigs.forEach(cfg => {
                 const enemy = new EnemyMovement(scene, model, cfg.pos, cfg.type, (enemyModel) => {
-                    // Only create health bar after model is loaded
                     const bar = new EnemyHealthBar(enemyModel, { maxHealth: 100 });
+                    enemy.healthBar = bar; // Link bar to enemy
                     enemyHealthBars.push(bar);
                 });
                 enemies.push(enemy);
