@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { UP, DOWN, LEFT, RIGHT, DIRECTIONS } from './utils.js';
+import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
+
 
 class CharacterControls {
-    constructor(model, mixer, animationsMap, thirdPersonCamera, currentAction) {
+    constructor(model, mixer, animationsMap, thirdPersonCamera, currentAction, collidables = []) {
         this.model = model;
         this.mixer = mixer;
         this.animationsMap = animationsMap || new Map();
@@ -16,6 +18,7 @@ class CharacterControls {
         this.runVelocity = 5.5; // Balanced speed
         this.walkVelocity = 2.5; // Balanced speed
         this.rotationSpeed = 0.25; // Smooth rotation speed
+        this.collidables = collidables;
 
         this.animationsMap.forEach((value, key) => {
             if (key === currentAction) {
@@ -26,6 +29,20 @@ class CharacterControls {
 
     switchRunToggle() {
         this.toggleRun = !this.toggleRun; //unused function now
+    }
+
+    willCollide(nextPosition) {
+        // Get the bounding box at the next position
+        const box = new THREE.Box3().setFromObject(this.model);
+        const delta = nextPosition.clone().sub(this.model.position);
+        box.translate(delta);
+
+        for (const mesh of this.collidables) {
+            if (boxIntersectsMeshBVH(box, mesh)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     update(delta, keysPressed) {
@@ -102,8 +119,12 @@ class CharacterControls {
                 const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
                 const moveX = moveDirection.x * velocity * delta;
                 const moveZ = moveDirection.z * velocity * delta;
-                this.model.position.x += moveX;
-                this.model.position.z += moveZ;
+                const nextPosition = this.model.position.clone().add(new THREE.Vector3(moveX, 0, moveZ));
+
+                if (!this.willCollide(nextPosition)) {
+                    this.model.position.copy(nextPosition);
+                }
+                
             }
         }
     }

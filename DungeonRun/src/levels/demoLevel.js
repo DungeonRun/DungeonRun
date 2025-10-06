@@ -1,3 +1,4 @@
+import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { EnemyMovement } from '../movements/enemyMovement.js';
@@ -5,6 +6,8 @@ import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { CharacterControls } from '../movements/characterControls.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { EnemyHealthBar } from '../view/enemyHealthBar.js';
+
+
 
 export async function loadDemoLevel({
     scene,
@@ -14,6 +17,10 @@ export async function loadDemoLevel({
     onEnemiesLoaded,
     onKeyLoaded
 }) {
+    THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
+    THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
+    THREE.Mesh.prototype.raycast = acceleratedRaycast;
+
     // Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.7));
     const dirLight = new THREE.DirectionalLight(0xffffff, 1);
@@ -59,7 +66,8 @@ export async function loadDemoLevel({
     scene.add(floor);
 
     // Room Cube
-    const size = 40;
+    //ALLLL of this is placeholder for room model geometry.
+    const size = 20;
     const roomGeometry = new THREE.BoxGeometry(size, size, size);
     const roomMaterial = new THREE.MeshStandardMaterial({
         color: 0xffffff,
@@ -69,6 +77,36 @@ export async function loadDemoLevel({
     room.position.y = size / 2 - 0.05;
     room.receiveShadow = true;
     scene.add(room);
+    // Assuming 'size' is the length of the cube's sides and 'room' is your cube mesh
+    const half = size / 2;
+    const wallThickness = 0.2; // Thin wall
+
+    const wallPlanes = [
+        // +X wall (right)
+        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
+        // -X wall (left)
+        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
+        // +Z wall (back)
+        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
+        // -Z wall (front)
+        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
+        // Floor (optional)
+        // new THREE.Mesh(new THREE.BoxGeometry(size, wallThickness, size), new THREE.MeshBasicMaterial({ visible: false })),
+        // Ceiling (optional)
+        // new THREE.Mesh(new THREE.BoxGeometry(size, wallThickness, size), new THREE.MeshBasicMaterial({ visible: false })),
+    ];
+
+    // Position the walls
+    wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z); // +X
+    wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z); // -X
+    wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half); // +Z
+    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half); // -Z
+
+    wallPlanes.forEach(wall => {
+        wall.geometry.computeBoundsTree();
+        scene.add(wall);
+    });
+    const collidables = [...wallPlanes];
 
     // Player
     new GLTFLoader().load(
@@ -97,9 +135,9 @@ export async function loadDemoLevel({
                 scene: scene
             });
 
-            const characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle');
+            const characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle', collidables);
 
-            if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera });
+            if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
 
             // Enemies
             const enemies = [];
@@ -116,10 +154,10 @@ export async function loadDemoLevel({
                     const bar = new EnemyHealthBar(enemyModel, { maxHealth: 100 });
                     enemy.healthBar = bar; // Link bar to enemy
                     enemyHealthBars.push(bar);
-                });
+                }, collidables);
                 enemies.push(enemy);
             });
-            if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars });
+            if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
         }
     );
 
@@ -127,4 +165,13 @@ export async function loadDemoLevel({
     addGlowingKey(scene).then(({ animator, key }) => {
         if (onKeyLoaded) onKeyLoaded({ animator, key });
     });
+}
+
+export function boxIntersectsMeshBVH(box, mesh) {
+    // Create a geometry bounding box helper mesh for intersection test
+    const geometry = mesh.geometry;
+    if (!geometry.boundsTree) return false; // BVH not built
+
+    // Use BVH's intersectsBox method
+    return geometry.boundsTree.intersectsBox(box, mesh.matrixWorld);
 }

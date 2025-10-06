@@ -1,9 +1,10 @@
 // enemyMovement.js
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 
 export class EnemyMovement {
-    constructor(scene, player, startPosition = new THREE.Vector3(0, 1, 0), type = "mutant", onModelLoaded) {
+    constructor(scene, player, startPosition = new THREE.Vector3(0, 1, 0), type = "mutant", onModelLoaded , collidables = []) {
         this.raycaster = new THREE.Raycaster();
         this.groundRaycaster = new THREE.Raycaster();
         this.scene = scene;
@@ -16,6 +17,7 @@ export class EnemyMovement {
         this.groundOffset = 0; // Will be set based on enemy type
         this.health = 100;
         this.healthBar = null; 
+        this.collidables = collidables;
 
         this.onModelLoaded = onModelLoaded; //for enemy healthbars
 
@@ -252,6 +254,20 @@ export class EnemyMovement {
             );
             this.spotLight.target.position.copy(this.player.position);
         }
+    }
+
+    willCollide(nextPosition) {
+        // Get the bounding box at the next position
+        const box = new THREE.Box3().setFromObject(this.model);
+        const delta = nextPosition.clone().sub(this.model.position);
+        box.translate(delta);
+
+        for (const mesh of this.collidables) {
+            if (boxIntersectsMeshBVH(box, mesh)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     update(delta) {

@@ -18,9 +18,8 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 
 ### 2. Niel Grobler
 - **Features Developed**: 
-  - Added Health
-  - Refactored for level loading
-  - Added Cube
+  - Added Health for enemies and player 
+  - Refactored code for level loading and collision
   
 - **Notes**: 
 - **Additional Info**: 
