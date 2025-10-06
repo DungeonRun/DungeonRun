@@ -165,6 +165,67 @@ export async function loadDemoLevel({
     addGlowingKey(scene).then(({ animator, key }) => {
         if (onKeyLoaded) onKeyLoaded({ animator, key });
     });
+
+    // Treasure Chests
+    const chestLoader = new GLTFLoader();
+    const chestPositions = [
+        new THREE.Vector3(-8, 0, -8),  // Bottom-left corner
+        new THREE.Vector3(8, 0, -8),   // Bottom-right corner
+        new THREE.Vector3(-8, 0, 8),   // Top-left corner
+        new THREE.Vector3(8, 0, 8)     // Top-right corner
+    ];
+
+    chestPositions.forEach((position, index) => {
+        chestLoader.load(
+            '/src/models/treasure_chest.glb',
+            function (gltf) {
+                const chest = gltf.scene.clone();
+                chest.position.copy(position);
+                chest.scale.set(1.0, 1.0, 1.0); // Scale up the chest to 3x bigger (was 0.5, now 1.5)
+                
+                // Rotate the right chest (index 1) to face away from the wall
+                if (index === 1) { // Right chest (bottom-right corner)
+                    chest.rotation.y = Math.PI; // Rotate 180 degrees to face away from wall
+                }
+                if (index === 3) { // Right chest (bottom-right corner)
+                    chest.rotation.y = Math.PI; // Rotate 180 degrees to face away from wall
+                }
+                
+                // Enable shadows
+                chest.traverse(function (object) {
+                    if (object.isMesh) {
+                        object.castShadow = true;
+                        object.receiveShadow = true;
+                    }
+                });
+                
+                chest.name = `treasure_chest_${index}`;
+                scene.add(chest);
+                
+                // Create collision box for the chest
+                const chestCollisionBox = new THREE.Mesh(
+                    new THREE.BoxGeometry(2, 2, 2), // Collision box size
+                    new THREE.MeshBasicMaterial({ visible: false }) // Invisible collision mesh
+                );
+                chestCollisionBox.position.copy(position);
+                chestCollisionBox.position.y = 1; // Center the collision box vertically
+                chestCollisionBox.name = `chest_collision_${index}`;
+                chestCollisionBox.geometry.computeBoundsTree(); // Enable BVH for collision detection
+                scene.add(chestCollisionBox);
+                
+                // Add to collidables array for player and enemy collision detection
+                collidables.push(chestCollisionBox);
+                
+                console.log(`Treasure chest ${index + 1} added at position:`, position);
+            },
+            function (progress) {
+                console.log('Loading treasure chest progress:', (progress.loaded / progress.total * 100) + '%');
+            },
+            function (error) {
+                console.error('Error loading treasure chest:', error);
+            }
+        );
+    });
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {

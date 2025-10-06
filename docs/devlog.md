@@ -82,9 +82,37 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 
 ### 5. Naledi Mogomotsi
 - **Features Developed**:
-  - 
-- **Notes**: 
-- **Additional Info**: 
+  - Treasure chest implementation and placement
+  - Chest collision system integration
+  - Chest scaling and rotation adjustments
+  
+- **Files Changed**:
+  - `src/levels/demoLevel.js` - Added treasure chest loading, positioning, scaling, collision detection, and rotation logic
+  
+- **Implementation Details**:
+  - **Initial Setup**: Added 4 treasure chests positioned at room corners using the existing `treasure_chest.glb` model
+  - **Positioning**: Chests placed at coordinates (-8,0,-8), (8,0,-8), (-8,0,8), and (8,0,8) for corner placement
+  - **Scaling**: Initially scaled chests to 1.5x size, later adjusted to 1.0x for better proportions
+  - **Collision System**: Implemented invisible collision boxes (2x2x2 units) for each chest with BVH integration
+  - **Collision Integration**: Added chest collision boxes to the `collidables` array for both player and enemy collision detection
+  - **Rotation**: Added 180-degree Y-axis rotation for right-side chests to face away from walls instead of toward them
+  - **Shadow Support**: Enabled proper shadow casting and receiving for all chest meshes
+  - **Error Handling**: Added progress tracking and error handling for model loading
+  
+- **Technical Features**:
+  - Uses GLTFLoader for model loading with proper cloning for multiple instances
+  - Integrates with existing BVH collision system used by walls and other obstacles
+  - Maintains unique naming convention for each chest and collision box
+  - Provides console logging for debugging and progress tracking
+  
+- **Gameplay Impact**:
+  - Chests now act as solid obstacles that both player and enemies must navigate around
+  - Adds strategic elements to level design by creating navigation challenges
+  - Chests are properly scaled and positioned for visual appeal and gameplay balance
+  
+- **Notes**: Successfully integrated treasure chests into the existing game architecture without breaking existing collision or movement systems. All chests are fully functional with proper collision detection for both player and enemy entities.
+  
+- **Additional Info**: Implementation follows the same patterns as existing models (enemies, player, key) and integrates seamlessly with the current game architecture. Chests use the same collision detection system as walls and other obstacles for consistent gameplay behavior. 
 
 ### 6. Hulisani
 - **Features Developed**:
