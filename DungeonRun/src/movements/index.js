@@ -4,9 +4,12 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CharacterControls } from './characterControls.js';
 import { KeyDisplay } from './utils.js';
+import { PlayerHealthBarUI } from '../view/playerHealthBarUI.js';
 import { EnemyMovement } from './enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { addGlowingKey } from '../keyGlow.js';
+import { loadDemoLevel } from '../levels/demoLevel.js';
+
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -16,12 +19,17 @@ let keyAnimator = null;
 let keyObject = null; 
 let isKeyGrabbed = false; 
 
+//health
+let playerHealthBar; 
+
 // Camera setup
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 5, 5);
 
 // Renderer setup
 const canvas = document.querySelector('#gameCanvas');
+
+
 if (!canvas) {
     console.error('Canvas with id="gameCanvas" not found!');
     throw new Error('Canvas element not found');
@@ -31,137 +39,49 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 
+// Level state
+let characterControls;
 let thirdPersonCamera;
+let enemies = [];
 
-// Lighting
-function light() {
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
-    dirLight.position.set(-60, 100, -10);
-    dirLight.castShadow = true;
-    dirLight.shadow.camera.top = 50;
-    dirLight.shadow.camera.bottom = -50;
-    dirLight.shadow.camera.left = -50;
-    dirLight.shadow.camera.right = 50;
-    dirLight.shadow.camera.near = 0.1;
-    dirLight.shadow.camera.far = 200;
-    dirLight.shadow.mapSize.width = 4096;
-    dirLight.shadow.mapSize.height = 4096;
-    scene.add(dirLight);
+function clearScene() {
+    while (scene.children.length > 0) {
+        scene.remove(scene.children[0]);
+    }
+    keyAnimator = null;
+    keyObject = null;
+    isKeyGrabbed = false;
+    characterControls = null;
+    thirdPersonCamera = null;
+    enemies = [];
+    enemies.forEach(enemy => enemy.healthBar && enemy.healthBar.remove());
+    if (playerHealthBar) {
+        playerHealthBar.remove();
+        playerHealthBar = null;
+    }
 }
 
-// Floor generation
-function generateFloor() {
-    const textureLoader = new THREE.TextureLoader();
-    const loadTexture = (path) => {
-        return new Promise((resolve, reject) => {
-            textureLoader.load(
-                path,
-                resolve,
-                undefined,
-                (err) => reject(`Failed to load texture: ${path}, Error: ${err.message}`)
-            );
-        });
-    };
-
-    Promise.all([
-        loadTexture('/sand/Sand 002_COLOR.jpg'),
-        loadTexture('/sand/Sand 002_NRM.jpg'),
-        loadTexture('/sand/Sand 002_DISP.jpg'),
-        loadTexture('/sand/Sand 002_OCC.jpg')
-    ]).then(([sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion]) => {
-        const WIDTH = 80;
-        const LENGTH = 80;
-
-        // Reduced geometry detail for better performance and less visual noise
-        // 512x512 was creating too much detail causing shimmer during movement
-        const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 100, 100);
-        const material = new THREE.MeshStandardMaterial({
-            map: sandBaseColor,
-            normalMap: sandNormalMap,
-            displacementMap: sandHeightMap,
-            displacementScale: 0.05, // Reduced for less pronounced displacement
-            aoMap: sandAmbientOcclusion,
-            roughness: 0.9, // More matte for sand
-            metalness: 0.0  // Sand is not metallic
-        });
-
-        function wrapAndRepeatTexture(map) {
-            map.wrapS = map.wrapT = THREE.RepeatWrapping;
-            map.repeat.set(8, 8); // Reduced from 10x10 for less repetitive pattern
-            // Add anisotropic filtering to reduce texture shimmering during movement
-            map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+// Level loading
+async function loadLevel(levelLoader) {
+    clearScene();
+    playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
+    await levelLoader({
+        scene,
+        renderer,
+        camera,
+        onPlayerLoaded: ({ model, mixer, animationsMap, characterControls: cc, thirdPersonCamera: cam }) => {
+            characterControls = cc;
+            thirdPersonCamera = cam;
+        },
+        onEnemiesLoaded: ({ enemies: enemyArr}) => {
+            enemies = enemyArr;
+        },
+        onKeyLoaded: ({ animator, key }) => {
+            keyAnimator = animator;
+            keyObject = key;
         }
-
-        wrapAndRepeatTexture(material.map);
-        wrapAndRepeatTexture(material.normalMap);
-        wrapAndRepeatTexture(material.displacementMap);
-        wrapAndRepeatTexture(material.aoMap);
-
-        const floor = new THREE.Mesh(geometry, material);
-        floor.receiveShadow = true;
-        floor.rotation.x = -Math.PI / 2;
-        scene.add(floor);
-    }).catch((err) => {
-        console.error(err);
     });
 }
-
-// Load model and animations
-let characterControls;
-let enemyMovement1;
-let enemyMovement2;
-let scaryMonster1;
-let enemyMovement3;
-
-new GLTFLoader().load(
-    '/src/models/Soldier.glb',
-    function (gltf) {
-        const model = gltf.scene;
-        model.traverse(function (object) {
-            if (object.isMesh) {
-                object.castShadow = true;
-                object.name = 'player';
-            }
-        });
-        model.name = 'player';
-        scene.add(model);
-
-        const gltfAnimations = gltf.animations;
-        const mixer = new THREE.AnimationMixer(model);
-        const animationsMap = new Map();
-        gltfAnimations.filter(a => a.name !== 'TPose').forEach((a) => {
-            animationsMap.set(a.name, mixer.clipAction(a));
-        });
-
-        thirdPersonCamera = new ThirdPersonCamera({
-            camera: camera,
-            target: model,
-            scene: scene
-        });
-
-        characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle');
-
-        // Enemies
-        enemyMovement1 = new EnemyMovement(scene, model, new THREE.Vector3(0, 1, 0), "mutant");
-        enemyMovement2 = new EnemyMovement(scene, model, new THREE.Vector3(5, 1, -5), "mutant");
-        scaryMonster1 = new EnemyMovement(scene, model, new THREE.Vector3(-5, 1, -10), "scaryMonster");
-        enemyMovement3 = new EnemyMovement(scene, model, new THREE.Vector3(10, 1, -5), "monsterEye"); 
-    },
-    undefined,
-    function (error) {
-        console.error('Error loading Soldier.glb:', error);
-    }
-);
-
-// Load glowing key
-addGlowingKey(scene).then(({ animator, key }) => {
-    keyAnimator = animator;
-    keyObject = key;
-    console.log('Glowing key loaded and ready!');
-}).catch(error => {
-    console.error('Failed to load glowing key:', error);
-});
 
 // Keyboard controls
 const keysPressed = {};
@@ -179,6 +99,18 @@ document.addEventListener('keydown', (event) => {
             grabKey();
         }
     }
+
+    if (event.code === 'Space') {
+        playerAttack();
+    }
+
+    if (event.key.toLowerCase() === 'h') { // Press H to damage player
+        if (playerHealthBar) {
+            playerHealthBar.setHealth(playerHealthBar.health - 10);
+        }
+    }
+
+
 }, false);
 
 document.addEventListener('keyup', (event) => {
@@ -197,6 +129,43 @@ function grabKey() {
     console.log('Key grabbed! Status updated to yes.');
 }
 
+function playerAttack() {
+    if (!characterControls || !characterControls.model) return;
+
+    //hitbox code
+    const playerPos = characterControls.model.position.clone();
+    const forward = new THREE.Vector3(0, 0.5, -0.33).applyQuaternion(characterControls.model.quaternion);
+    const hitboxCenter = playerPos.clone().add(forward.multiplyScalar(2)); // 2 units in front
+    const hitboxSize = new THREE.Vector3(1.5, 2, 1.4); // width, height, depth
+
+    const hitbox = new THREE.Box3().setFromCenterAndSize(hitboxCenter, hitboxSize);
+
+     //visualiation
+    /*const helper = new THREE.Box3Helper(hitbox, 0xff0000);
+    scene.add(helper);
+    setTimeout(() => scene.remove(helper), 100);
+    */
+    
+    //enemy intersection, will need timeout delays for animations.
+    enemies.forEach(enemy => {
+        if (!enemy.model) return;
+        const enemyBox = new THREE.Box3().setFromObject(enemy.model);
+        if (hitbox.intersectsBox(enemyBox)) {
+            enemy.health = Math.max(0, enemy.health - 25);
+            if (enemy.healthBar) {
+                enemy.healthBar.setHealth(enemy.health);
+            }
+            if (enemy.health <= 0){
+                scene.remove(enemy.model);
+                if (enemy.healthBar){
+                    enemy.healthBar.remove();
+                }
+                enemies.splice(i, 1);
+            }
+        }
+    });
+}
+
 // Animation loop
 const clock = new THREE.Clock();
 function animate() {
@@ -204,14 +173,8 @@ function animate() {
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keysPressed);
     }
-    if (enemyMovement1) enemyMovement1.update(mixerUpdateDelta);
-    if (enemyMovement2) enemyMovement2.update(mixerUpdateDelta);
-    if (scaryMonster1) scaryMonster1.update(mixerUpdateDelta);
-    if (enemyMovement3) enemyMovement3.update(mixerUpdateDelta);
-
-    if (keyAnimator) {
-        keyAnimator();
-    }
+    enemies.forEach(e => e.update(mixerUpdateDelta));
+    if (keyAnimator) keyAnimator();
 
     if (keyObject && !isKeyGrabbed && characterControls) {
         const playerPos = characterControls.model.position;
@@ -228,25 +191,31 @@ function animate() {
         keyDisplayQueue.up('e');
     }
 
+    enemies.forEach(enemy => { 
+        if (enemy.healthBar) enemy.healthBar.update(camera);
+    });
+
     if (thirdPersonCamera) {
         thirdPersonCamera.Update(mixerUpdateDelta);
     }
 
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
+
+    //example for switching levels ! this should hopefully be changed
+    if (isKeyGrabbed && !window._levelSwitched) {
+        window._levelSwitched = true;
+        setTimeout(() => {
+            switchLevel();
+        }, 1000);
+    }
+    
 }
 
-function addRoomCube() {
-    const size = 40;
-    const geometry = new THREE.BoxGeometry(size, size, size);
-    const material = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        side: THREE.BackSide //normal inversion
-    });
-    const room = new THREE.Mesh(geometry, material);
-    room.position.y = size / 2 - 0.05; 
-    room.receiveShadow = true;
-    scene.add(room);
+function switchLevel() {
+    // For now, reload demo level (replace with another loader for more levels)
+    loadLevel(loadDemoLevel);
+    window._levelSwitched = false;
 }
 
 // Resize handler
@@ -258,7 +227,5 @@ function onWindowResize() {
 }
 window.addEventListener('resize', onWindowResize);
 
-light();
-generateFloor();
-addRoomCube();
+loadLevel(loadDemoLevel);
 animate();
