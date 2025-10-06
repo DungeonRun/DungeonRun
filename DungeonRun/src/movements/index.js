@@ -9,6 +9,7 @@ import { EnemyMovement } from './enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { loadDemoLevel } from '../levels/demoLevel.js';
+import { Inventory } from '../view/invetory.js';
 
 
 // Scene setup
@@ -18,6 +19,9 @@ scene.background = new THREE.Color(0xa8def0);
 let keyAnimator = null;
 let keyObject = null; 
 let isKeyGrabbed = false; 
+
+//invetory
+let invetory;
 
 //health
 let playerHealthBar; 
@@ -65,6 +69,7 @@ function clearScene() {
 async function loadLevel(levelLoader) {
     clearScene();
     playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
+    invetory = new Inventory();
     await levelLoader({
         scene,
         renderer,
