@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CharacterControls } from './characterControls.js';
 import { KeyDisplay } from './utils.js';
+import { PlayerHealthBarUI } from '../view/playerHealthBarUI.js';
 import { EnemyMovement } from './enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { addGlowingKey } from '../keyGlow.js';
@@ -56,11 +57,16 @@ function clearScene() {
     enemies = [];
     enemyHealthBars.forEach(bar => bar && bar.remove());
     enemyHealthBars = [];
+    if (playerHealthBar) {
+        playerHealthBar.remove();
+        playerHealthBar = null;
+    }
 }
 
 // Level loading
 async function loadLevel(levelLoader) {
     clearScene();
+    playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
     await levelLoader({
         scene,
         renderer,
