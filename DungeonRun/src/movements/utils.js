@@ -6,7 +6,12 @@ export const LEFT = 'arrowleft';
 export const RIGHT = 'arrowright';
 export const SHIFT = 'shift';
 export const E_KEY = 'e'; 
-export const DIRECTIONS = [UP, DOWN, LEFT, RIGHT];
+export const keyUp = 'w';
+export const keyDown = 's';
+export const keyLeft = 'a';
+export const keyRight = 'd';
+
+export const DIRECTIONS = [UP, DOWN, LEFT, RIGHT, keyUp, keyDown, keyLeft, keyRight];
 
 export function KeyDisplay() {
     this.map = new Map();

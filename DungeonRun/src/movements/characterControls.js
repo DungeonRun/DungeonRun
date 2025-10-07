@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { UP, DOWN, LEFT, RIGHT, DIRECTIONS } from './utils.js';
+import { UP, DOWN, LEFT, RIGHT, DIRECTIONS, keyUp, keyDown, keyLeft, keyRight } from './utils.js';
 import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 
 
@@ -89,16 +89,16 @@ class CharacterControls {
             cameraRight.normalize();
 
             // Calculate movement based on keys pressed
-            if (keysPressed[UP]) {
+            if (keysPressed[UP] || keysPressed[keyUp]) {
                 moveDirection.add(cameraForward);
             }
-            if (keysPressed[DOWN]) {
+            if (keysPressed[DOWN] || keysPressed[keyDown]) {
                 moveDirection.sub(cameraForward);
             }
-            if (keysPressed[LEFT]) {
+            if (keysPressed[LEFT] || keysPressed[keyLeft]) {
                 moveDirection.sub(cameraRight);
             }
-            if (keysPressed[RIGHT]) {
+            if (keysPressed[RIGHT] || keysPressed[keyRight]) {
                 moveDirection.add(cameraRight);
             }
 
@@ -133,23 +133,23 @@ class CharacterControls {
     directionOffset(keysPressed) {
         let directionOffset = 0; // arrowup
 
-        if (keysPressed[UP]) {
-            if (keysPressed[LEFT]) {
+        if (keysPressed[UP] || keysPressed[keyUp]) {
+            if (keysPressed[LEFT] || keysPressed[keyLeft]) {
                 directionOffset = Math.PI / 4; // arrowup+arrowleft
-            } else if (keysPressed[RIGHT]) {
+            } else if (keysPressed[RIGHT] || keysPressed[keyRight]) {
                 directionOffset = -Math.PI / 4; // arrowup+arrowright
             }
-        } else if (keysPressed[DOWN]) {
-            if (keysPressed[LEFT]) {
+        } else if (keysPressed[DOWN] || keysPressed[keyDown]) {
+            if (keysPressed[LEFT] || keysPressed[keyLeft]) {
                 directionOffset = Math.PI / 4 + Math.PI / 2; // arrowdown+arrowleft
-            } else if (keysPressed[RIGHT]) {
+            } else if (keysPressed[RIGHT] || keysPressed[keyRight]) {
                 directionOffset = -Math.PI / 4 - Math.PI / 2; // arrowdown+arrowright
             } else {
                 directionOffset = Math.PI; // arrowdown
             }
-        } else if (keysPressed[LEFT]) {
+        } else if (keysPressed[LEFT] || keysPressed[keyLeft]) {
             directionOffset = Math.PI / 2; // arrowleft
-        } else if (keysPressed[RIGHT]) {
+        } else if (keysPressed[RIGHT] || keysPressed[keyRight]) {
             directionOffset = -Math.PI / 2; // arrowright
         }
 

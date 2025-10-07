@@ -28,14 +28,6 @@ export class Inventory {
     const style = document.createElement('style');
     style.innerHTML = `
       @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap');
-
-      body {
-        margin: 0;
-        overflow: hidden;
-        background-color: #1a1a1a;
-        font-family: 'MedievalSharp', cursive;
-      }
-
       .inventory-bar {
         display: flex;
         gap: 10px;
