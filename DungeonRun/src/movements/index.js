@@ -9,19 +9,26 @@ import { EnemyMovement } from './enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { loadDemoLevel } from '../levels/demoLevel.js';
-import { Inventory } from '../view/invetory.js';
+import { Inventory } from '../view/inventory.js';
+import { ProjectileManager } from './projectiles.js';
 
 
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xa8def0);
 
+let isGameOver = false;
+
 let keyAnimator = null;
 let keyObject = null; 
 let isKeyGrabbed = false; 
 
+let debugMode = false;
+let debugHelpers = [];
+
+
 //invetory
-let invetory;
+let inventory;
 
 //health
 let playerHealthBar; 
@@ -48,6 +55,10 @@ let characterControls;
 let thirdPersonCamera;
 let enemies = [];
 
+//projectiles
+const projectileManager = new ProjectileManager(scene, camera, enemies);
+let projectiles = [];
+
 function clearScene() {
     while (scene.children.length > 0) {
         scene.remove(scene.children[0]);
@@ -69,7 +80,7 @@ function clearScene() {
 async function loadLevel(levelLoader) {
     clearScene();
     playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
-    invetory = new Inventory();
+    inventory = new Inventory();
     await levelLoader({
         scene,
         renderer,
@@ -105,6 +116,12 @@ document.addEventListener('keydown', (event) => {
         }
     }
 
+    //redundancy
+    if (event.key === '1') inventory.selected = 0;
+    if (event.key === '2') inventory.selected = 1;
+
+    if (event.key === 'q') inventory.switchItem();
+
     if (event.code === 'Space') {
         playerAttack();
     }
@@ -113,6 +130,12 @@ document.addEventListener('keydown', (event) => {
         if (playerHealthBar) {
             playerHealthBar.setHealth(playerHealthBar.health - 10);
         }
+    }
+
+    //enables debug mode (shows )
+    if (event.key.toLowerCase() === 'p') {
+        debugMode = !debugMode;
+        updateDebugHelpers();
     }
 
 
@@ -134,7 +157,23 @@ function grabKey() {
     console.log('Key grabbed! Status updated to yes.');
 }
 
+let spellCooldownEnd = 5000;
 function playerAttack() {
+    if (inventory.getSelected() === 'sword') {
+        swordAttack();
+    } else if (inventory.getSelected() === 'spell') {
+        // Only fire if cooldown allows
+        if (performance.now() > spellCooldownEnd) {
+            const origin = characterControls.model.position.clone();
+            origin.y += 1.2;
+            const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(characterControls.model.quaternion);
+            projectileManager.fireSpell(origin, direction);
+            spellCooldownEnd = performance.now() + 5000; // 1 second cooling down
+        }
+    }
+}
+
+function swordAttack() {
     if (!characterControls || !characterControls.model) return;
 
     //hitbox code
@@ -157,18 +196,48 @@ function playerAttack() {
         const enemyBox = new THREE.Box3().setFromObject(enemy.model);
         if (hitbox.intersectsBox(enemyBox)) {
             enemy.health = Math.max(0, enemy.health - 25);
-            if (enemy.healthBar) {
-                enemy.healthBar.setHealth(enemy.health);
-            }
-            if (enemy.health <= 0){
-                scene.remove(enemy.model);
-                if (enemy.healthBar){
-                    enemy.healthBar.remove();
-                }
-                enemies.splice(i, 1);
-            }
         }
     });
+}
+
+function fireSpell() {
+    if (inventory.getCooldown(1) > performance.now()) return;
+    inventory.setCooldown(1, performance.now() + 3000); // 3s cooldown
+    // Create projectile
+    ProjectileManager.fireSpell();
+}
+
+function showGameOverMenu() {
+    isGameOver = true;
+    const overlay = document.createElement('div');
+    overlay.id = 'game-over-overlay';
+    overlay.style.position = 'fixed';
+    overlay.style.top = 0;
+    overlay.style.left = 0;
+    overlay.style.width = '100vw';
+    overlay.style.height = '100vh';
+    overlay.style.background = 'rgba(0,0,0,0.8)';
+    overlay.style.display = 'flex';
+    overlay.style.flexDirection = 'column';
+    overlay.style.justifyContent = 'center';
+    overlay.style.alignItems = 'center';
+    overlay.style.zIndex = 9999;
+    overlay.innerHTML = `
+        <h1 style="color:white;font-size:4em;">Game Over</h1>
+        <button id="retry-btn" style="font-size:2em;">Retry</button>
+    `;
+    document.body.appendChild(overlay);
+    document.getElementById('retry-btn').onclick = () => {
+        
+        overlay.remove();
+        isGameOver = false;
+        loadLevel(loadDemoLevel);
+    };
+}
+
+// In your animate loop or after playerHealthBar.setHealth:
+if (playerHealthBar && playerHealthBar.health <= 0 && !isGameOver) {
+    showGameOverMenu();
 }
 
 // Animation loop
@@ -178,7 +247,23 @@ function animate() {
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keysPressed);
     }
-    enemies.forEach(e => e.update(mixerUpdateDelta));
+
+    enemies.forEach(enemy => {
+        enemy.update(mixerUpdateDelta, characterControls);
+        if (enemy.healthBar) {
+            enemy.healthBar.setHealth(enemy.health);
+            enemy.healthBar.update(camera);
+        }
+        if (enemy.health <= 0){
+            scene.remove(enemy.model);
+            if (enemy.healthBar){
+                enemy.healthBar.remove();
+            }
+            //enemies.splice(i, 1);
+        }
+    });
+            
+
     if (keyAnimator) keyAnimator();
 
     if (keyObject && !isKeyGrabbed && characterControls) {
@@ -196,16 +281,33 @@ function animate() {
         keyDisplayQueue.up('e');
     }
 
-    enemies.forEach(enemy => { 
-        if (enemy.healthBar) enemy.healthBar.update(camera);
-    });
+    
+
+
+    //for projectiles
+    projectileManager.enemies = enemies;
+    projectileManager.update(clock);
 
     if (thirdPersonCamera) {
         thirdPersonCamera.Update(mixerUpdateDelta);
     }
 
+    
+
+    if (playerHealthBar && characterControls) {
+        playerHealthBar.setHealth(characterControls.health);
+    }
+    
+    if (characterControls && characterControls.health <= 0 && !isGameOver) {
+        showGameOverMenu();
+    }
+
+    if (debugMode) updateDebugHelpers();
+
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
+
+    
 
     //example for switching levels ! this should hopefully be changed
     if (isKeyGrabbed && !window._levelSwitched) {
@@ -221,6 +323,34 @@ function switchLevel() {
     // For now, reload demo level (replace with another loader for more levels)
     loadLevel(loadDemoLevel);
     window._levelSwitched = false;
+}
+
+//for viewing hitboxes
+function updateDebugHelpers() {
+    debugHelpers.forEach(h => scene.remove(h));
+    debugHelpers = [];
+    if (!debugMode) return;
+    // Player
+    const playerBox = new THREE.Box3().setFromObject(characterControls.model);
+    const playerHelper = new THREE.Box3Helper(playerBox, 0x00ff00);
+    scene.add(playerHelper);
+    debugHelpers.push(playerHelper);
+
+    // Enemies
+    enemies.forEach(enemy => {
+        const box = new THREE.Box3().setFromObject(enemy.model);
+        const helper = new THREE.Box3Helper(box, 0xff0000);
+        scene.add(helper);
+        debugHelpers.push(helper);
+    });
+
+    // Projectiles
+    projectiles.forEach(spell => {
+        const box = new THREE.Box3().setFromObject(spell);
+        const helper = new THREE.Box3Helper(box, 0xaa00ff);
+        scene.add(helper);
+        debugHelpers.push(helper);
+    });
 }
 
 // Resize handler

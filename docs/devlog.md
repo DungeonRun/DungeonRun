@@ -18,8 +18,9 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 
 ### 2. Niel Grobler
 - **Features Developed**: 
-  - Added Health for enemies and player 
-  - Refactored code for level loading and collision
+  - added Health and damage for enemies and player
+  - refactored code for level loading, game overs, and collision
+  - added spell projectiles
   
 - **Notes**: 
 - **Additional Info**: 

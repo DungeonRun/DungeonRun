@@ -67,7 +67,7 @@ export async function loadDemoLevel({
 
     // Room Cube
     //ALLLL of this is placeholder for room model geometry.
-    const size = 20;
+    const size = 30;
     const roomGeometry = new THREE.BoxGeometry(size, size, size);
     const roomMaterial = new THREE.MeshStandardMaterial({
         color: 0xffffff,
@@ -143,15 +143,15 @@ export async function loadDemoLevel({
             const enemies = [];
             const enemyHealthBars = [];
             const enemyConfigs = [
-                { pos: new THREE.Vector3(0, 1, 0), type: "mutant" },
-                { pos: new THREE.Vector3(5, 1, -5), type: "mutant" },
-                { pos: new THREE.Vector3(-5, 1, -10), type: "scaryMonster" },
-                { pos: new THREE.Vector3(10, 1, -5), type: "monsterEye" }
+                { pos: new THREE.Vector3(0, 1, -11), type: "mutant" },
+                { pos: new THREE.Vector3(3, 1, -12), type: "mutant" },
+                { pos: new THREE.Vector3(-3, 1, -8), type: "scaryMonster" },
+                { pos: new THREE.Vector3(1, 1, -8), type: "monsterEye" }
             ];
 
             enemyConfigs.forEach(cfg => {
                 const enemy = new EnemyMovement(scene, model, cfg.pos, cfg.type, (enemyModel) => {
-                    const bar = new EnemyHealthBar(enemyModel, { maxHealth: 100 });
+                    const bar = new EnemyHealthBar(enemyModel, { maxHealth: enemy.health });
                     enemy.healthBar = bar; // Link bar to enemy
                     enemyHealthBars.push(bar);
                 }, collidables);
@@ -169,10 +169,10 @@ export async function loadDemoLevel({
     // Treasure Chests
     const chestLoader = new GLTFLoader();
     const chestPositions = [
-        new THREE.Vector3(-8, 0, -8),  // Bottom-left corner
-        new THREE.Vector3(8, 0, -8),   // Bottom-right corner
-        new THREE.Vector3(-8, 0, 8),   // Top-left corner
-        new THREE.Vector3(8, 0, 8)     // Top-right corner
+        new THREE.Vector3(-12, 0, -12),  // Bottom-left corner
+        new THREE.Vector3(12, 0, -12),   // Bottom-right corner
+        new THREE.Vector3(-12, 0, 12),   // Top-left corner
+        new THREE.Vector3(12, 0, 12)     // Top-right corner
     ];
 
     chestPositions.forEach((position, index) => {

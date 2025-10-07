@@ -20,6 +20,11 @@ export class Inventory {
     this.maxSlots = 5;
     this.selectedIndex = 0;
 
+    this.items = ['sword', 'spell'];
+    this.selected = 0;
+    this.cooldowns = [0, 0]; // sword, spell
+
+
     this.createInventoryUI();
     this.setupKeyboardControls();
   }
@@ -154,5 +159,19 @@ export class Inventory {
         slot.element.classList.remove('selected');
       }
     });
+  }
+
+  //might be redundant, we'll see
+  switchItem() {
+    this.selected = (this.selected + 1) % this.items.length;
+  }
+  getSelected() {
+    return this.items[this.selected];
+  }
+  setCooldown(idx, time) {
+    this.cooldowns[idx] = time;
+  }
+  getCooldown(idx) {
+    return this.cooldowns[idx];
   }
 }
