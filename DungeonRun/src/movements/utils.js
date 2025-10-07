@@ -1,9 +1,9 @@
 // utils.js - for keyboard movements as well as interactions.
 
-export const UP = 'arrowup';
-export const DOWN = 'arrowdown';
-export const LEFT = 'arrowleft';
-export const RIGHT = 'arrowright';
+export const UP = 'w'; //previously arrowup
+export const DOWN = 's'; //previously arrowdown
+export const LEFT = 'a'; //previously arrowleft
+export const RIGHT = 'd';  //previously arrowright
 export const SHIFT = 'shift';
 export const E_KEY = 'e'; 
 export const DIRECTIONS = [UP, DOWN, LEFT, RIGHT];
