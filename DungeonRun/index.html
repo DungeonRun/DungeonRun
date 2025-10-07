@@ -26,7 +26,45 @@
     <img id="dungeon-bg" src="https://th.bing.com/th/id/R.8d265d06810bb23aaae03aa276b30a20?rik=upp2sunhwE%2fQqw&riu=http%3a%2f%2fsimonbarle.com%2fWork%2fDungeon%2fDungeon_02.jpg&ehk=885U4xuDV59JBQKxOWtfpgFEvj05JRhhND%2fIwDDlTxw%3d&risl=&pid=ImgRaw&r=0" alt="Dungeon Background">
     <canvas id="embers"></canvas>
     
+    <!-- Background Music Audio Element -->
+    <audio id="mainMenuMusic" loop>
+        <source src="src/sound/DungeonSoundEffect.mp3" type="audio/mpeg">
+        Your browser does not support the audio element.
+    </audio>
+    
     <script src="index.js"></script>
     <link rel="stylesheet" href="index.css">
+    
+    <script>
+        // Music control script
+        const menuMusic = document.getElementById('mainMenuMusic');
+        let musicStarted = false;
+
+        // Function to start music (requires user interaction)
+        function startMenuMusic() {
+            if (!musicStarted) {
+                menuMusic.play().catch(err => {
+                    console.log('Music autoplay blocked. Will play on first interaction.');
+                });
+                musicStarted = true;
+            }
+        }
+
+        // Try to play music when page loads
+        window.addEventListener('load', () => {
+            startMenuMusic();
+        });
+
+        // Fallback: Play on first user interaction if autoplay blocked
+        document.body.addEventListener('click', startMenuMusic, { once: true });
+
+        // Override the play function to stop music before redirecting
+        const originalPlay = window.play;
+        window.play = function() {
+            menuMusic.pause();
+            menuMusic.currentTime = 0;
+            originalPlay();
+        };
+    </script>
 </body>
 </html>
