@@ -97,7 +97,7 @@ class ThirdPersonCamera {
             if (!this._isMouseLocked) return;
 
             // Update rotation angles based on mouse movement
-            this._azimuthalAngle -= event.movementX * this._mouseSensitivity;
+            this._azimuthalAngle += event.movementX * this._mouseSensitivity;
             this._polarAngle -= event.movementY * this._mouseSensitivity;
 
             // Clamp polar angle to prevent flipping
