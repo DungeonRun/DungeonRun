@@ -1,10 +1,19 @@
+function playClickSound() {
+    const clickSound = document.getElementById('clickSound');
+    clickSound.currentTime = 0; // Reset to start
+    clickSound.play().catch(err => console.log('Click sound error:', err));
+}
+
 function play(){
+    playClickSound();
     window.location.href = "./src/movements/index.html";
 }
 function settings(){
+    playClickSound();
     alert("Under development");
 }
 function credits(){
+    playClickSound();
     alert("Under development");
 }
 
