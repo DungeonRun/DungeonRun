@@ -22,8 +22,8 @@ export async function loadDemoLevel({
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
     // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0.7));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
+    scene.add(new THREE.AmbientLight(0xffffff, 0. ));
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
     dirLight.position.set(-60, 100, -10);
     dirLight.castShadow = true;
     dirLight.shadow.camera.top = 50;
@@ -52,8 +52,11 @@ export async function loadDemoLevel({
         displacementMap: sandHeightMap,
         displacementScale: 0.05,
         aoMap: sandAmbientOcclusion,
-        roughness: 0.9,
-        metalness: 0.0
+        roughness: 0.7,
+        metalness: 0.0,
+        color: 0x000000, //tint
+        emissive: 0x332200,
+        emissiveIntensity: 0.1
     });
     [material.map, material.normalMap, material.displacementMap, material.aoMap].forEach(map => {
         map.wrapS = map.wrapT = THREE.RepeatWrapping;
@@ -67,7 +70,7 @@ export async function loadDemoLevel({
 
     // Room Cube
     //ALLLL of this is placeholder for room model geometry.
-    const size = 20;
+    const size = 30;
     const roomGeometry = new THREE.BoxGeometry(size, size, size);
     const roomMaterial = new THREE.MeshStandardMaterial({
         color: 0xffffff,
@@ -120,7 +123,14 @@ export async function loadDemoLevel({
                 }
             });
             model.name = 'player';
+
+            const playerLight = new THREE.PointLight(0xff7700, 15, 15); 
+            playerLight.position.set(0, 3, 0); 
+            model.add(playerLight);
+
             scene.add(model);
+
+
 
             const gltfAnimations = gltf.animations;
             const mixer = new THREE.AnimationMixer(model);
@@ -143,15 +153,33 @@ export async function loadDemoLevel({
             const enemies = [];
             const enemyHealthBars = [];
             const enemyConfigs = [
-                { pos: new THREE.Vector3(0, 1, 0), type: "mutant" },
-                { pos: new THREE.Vector3(5, 1, -5), type: "mutant" },
-                { pos: new THREE.Vector3(-5, 1, -10), type: "scaryMonster" },
-                { pos: new THREE.Vector3(10, 1, -5), type: "monsterEye" }
+                { pos: new THREE.Vector3(0, 1, -11), type: "mutant" },
+                { pos: new THREE.Vector3(3, 1, -12), type: "mutant" },
+                { pos: new THREE.Vector3(-3, 1, -8), type: "scaryMonster" },
+                { pos: new THREE.Vector3(1, 1, -8), type: "monsterEye" }
             ];
 
-            enemyConfigs.forEach(cfg => {
+             enemyConfigs.forEach(cfg => {
                 const enemy = new EnemyMovement(scene, model, cfg.pos, cfg.type, (enemyModel) => {
-                    const bar = new EnemyHealthBar(enemyModel, { maxHealth: 100 });
+                    //lighting effect
+                    const enemyLight = new THREE.PointLight(0xff0000, 1, 4); // Red light with 5 unit radius
+                    enemyLight.position.set(0, 0, 0); // Position above enemy center
+                    enemyModel.add(enemyLight);
+                    
+                    // Add light glow effect
+                    /*
+                    const lightGeometry = new THREE.SphereGeometry(0.3, 8, 8);
+                    const lightMaterial = new THREE.MeshBasicMaterial({ 
+                        color: 0xff0000,
+                        transparent: true,
+                        opacity: 0.6
+                    });
+                    const lightGlow = new THREE.Mesh(lightGeometry, lightMaterial);
+                    lightGlow.position.copy(enemyLight.position);
+                    enemyModel.add(lightGlow);
+                    */
+
+                    const bar = new EnemyHealthBar(enemyModel, { maxHealth: enemy.health });
                     enemy.healthBar = bar; // Link bar to enemy
                     enemyHealthBars.push(bar);
                 }, collidables);
@@ -169,10 +197,10 @@ export async function loadDemoLevel({
     // Treasure Chests
     const chestLoader = new GLTFLoader();
     const chestPositions = [
-        new THREE.Vector3(-8, 0, -8),  // Bottom-left corner
-        new THREE.Vector3(8, 0, -8),   // Bottom-right corner
-        new THREE.Vector3(-8, 0, 8),   // Top-left corner
-        new THREE.Vector3(8, 0, 8)     // Top-right corner
+        new THREE.Vector3(-12, 0, -12),  // Bottom-left corner
+        new THREE.Vector3(12, 0, -12),   // Bottom-right corner
+        new THREE.Vector3(-12, 0, 12),   // Top-left corner
+        new THREE.Vector3(12, 0, 12)     // Top-right corner
     ];
 
     chestPositions.forEach((position, index) => {

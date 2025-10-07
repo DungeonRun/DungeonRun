@@ -15,9 +15,15 @@ export class EnemyMovement {
         this.startPosition = startPosition;
         this.type = type; // "mutant" or "scaryMonster"
         this.groundOffset = 0; // Will be set based on enemy type
-        this.health = 100;
+        this.health = 30;
         this.healthBar = null; 
         this.collidables = collidables;
+
+        //melee attacks
+        this.attackCooldown = 1.3; // seconds
+        this.lastAttackTime = 1;
+        this.attackRange = 1.5;
+        this.attackDamage = 10;
 
         this.onModelLoaded = onModelLoaded; //for enemy healthbars
 
@@ -270,9 +276,28 @@ export class EnemyMovement {
         return false;
     }
 
-    update(delta) {
+    update(delta, characterControls) {
         this.checkForTarget();
         if (this.mixer) this.mixer.update(delta);
+
+        // Attack logic
+        if (this.enemyModel && characterControls) {
+            const dist = this.enemyModel.position.distanceTo(characterControls.model.position);
+            if (dist < this.attackRange) {
+                const now = performance.now() / 1000;
+                if (now - this.lastAttackTime > this.attackCooldown) {
+                    characterControls.health = Math.max(0, characterControls.health - this.attackDamage);
+                    this.lastAttackTime = now;
+                    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.enemyModel.quaternion);
+                    const attackCenter = this.enemyModel.position.clone().add(forward.multiplyScalar(1.5));
+                    const attackBox = new THREE.Box3().setFromCenterAndSize(attackCenter, new THREE.Vector3(1, 2, 1));
+                    const playerBox = new THREE.Box3().setFromObject(characterControls.model);
+                    if (attackBox.intersectsBox(playerBox)) {
+                        characterControls.health = Math.max(0, characterControls.health - this.attackDamage);
+                    }
+                }
+            }
+        }
     }
 
     //helper for enemy health ui

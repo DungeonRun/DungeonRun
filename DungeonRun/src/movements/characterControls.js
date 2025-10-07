@@ -20,6 +20,8 @@ class CharacterControls {
         this.rotationSpeed = 0.25; // Smooth rotation speed
         this.collidables = collidables;
 
+        this.health = 100;
+
         this.animationsMap.forEach((value, key) => {
             if (key === currentAction) {
                 value.play();
