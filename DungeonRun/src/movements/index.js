@@ -11,6 +11,7 @@ import { addGlowingKey } from '../keyGlow.js';
 import { loadDemoLevel } from '../levels/demoLevel.js';
 import { Inventory } from '../view/inventory.js';
 import { ProjectileManager } from './projectiles.js';
+import { GameOverUI } from '../view/gameOverUI.js';
 
 
 // Scene setup
@@ -55,6 +56,9 @@ let characterControls;
 let thirdPersonCamera;
 let enemies = [];
 
+// Game Over UI
+let gameOverUI; 
+
 //projectiles
 const projectileManager = new ProjectileManager(scene, camera, enemies);
 let projectiles = [];
@@ -74,12 +78,16 @@ function clearScene() {
         playerHealthBar.remove();
         playerHealthBar = null;
     }
+    if (gameOverUI) {
+        gameOverUI.remove();
+    }
 }
 
 // Level loading
 async function loadLevel(levelLoader) {
     clearScene();
     playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
+    gameOverUI = new GameOverUI()
     inventory = new Inventory();
     await levelLoader({
         scene,
@@ -207,39 +215,6 @@ function fireSpell() {
     ProjectileManager.fireSpell();
 }
 
-function showGameOverMenu() {
-    isGameOver = true;
-    const overlay = document.createElement('div');
-    overlay.id = 'game-over-overlay';
-    overlay.style.position = 'fixed';
-    overlay.style.top = 0;
-    overlay.style.left = 0;
-    overlay.style.width = '100vw';
-    overlay.style.height = '100vh';
-    overlay.style.background = 'rgba(0,0,0,0.8)';
-    overlay.style.display = 'flex';
-    overlay.style.flexDirection = 'column';
-    overlay.style.justifyContent = 'center';
-    overlay.style.alignItems = 'center';
-    overlay.style.zIndex = 9999;
-    overlay.innerHTML = `
-        <h1 style="color:white;font-size:4em;">Game Over</h1>
-        <button id="retry-btn" style="font-size:2em;">Retry</button>
-    `;
-    document.body.appendChild(overlay);
-    document.getElementById('retry-btn').onclick = () => {
-        
-        overlay.remove();
-        isGameOver = false;
-        loadLevel(loadDemoLevel);
-    };
-}
-
-// In your animate loop or after playerHealthBar.setHealth:
-if (playerHealthBar && playerHealthBar.health <= 0 && !isGameOver) {
-    showGameOverMenu();
-}
-
 // Animation loop
 const clock = new THREE.Clock();
 function animate() {
@@ -297,9 +272,12 @@ function animate() {
     if (playerHealthBar && characterControls) {
         playerHealthBar.setHealth(characterControls.health);
     }
-    
-    if (characterControls && characterControls.health <= 0 && !isGameOver) {
-        showGameOverMenu();
+
+    if (characterControls && characterControls.health <= 0 && !gameOverUI.isGameOver) {
+        gameOverUI.show(() => {
+            // Retry callback
+            loadLevel(loadDemoLevel);
+        });
     }
 
     if (debugMode) updateDebugHelpers();

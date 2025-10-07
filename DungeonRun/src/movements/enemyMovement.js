@@ -20,10 +20,10 @@ export class EnemyMovement {
         this.collidables = collidables;
 
         //melee attacks
-        this.attackCooldown = 8; // seconds
+        this.attackCooldown = 1.3; // seconds
         this.lastAttackTime = 1;
         this.attackRange = 1.5;
-        this.attackDamage = 4;
+        this.attackDamage = 10;
 
         this.onModelLoaded = onModelLoaded; //for enemy healthbars
 
