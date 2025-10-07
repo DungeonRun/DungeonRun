@@ -233,14 +233,21 @@ function animate() {
             enemy.healthBar.setHealth(enemy.health);
             enemy.healthBar.update(camera);
         }
-        if (enemy.health <= 0){
-            scene.remove(enemy.model);
-            if (enemy.healthBar){
-                enemy.healthBar.remove();
-            }
-            //enemies.splice(i, 1);
-        }
     });
+
+    //would use an forEach or other more intelligent system, but splicing needs to occur to eliminate the bug where the bounding boxes are still there to damage you after death
+    for (let i = enemies.length - 1; i >= 0; i--) {
+        const enemy = enemies[i];
+        if (enemy.health <= 0) {
+            scene.remove(enemy.model);
+            if (enemy.healthBar) enemy.healthBar.remove();
+            if (enemy.debugHelper) {
+                scene.remove(enemy.debugHelper);
+                enemy.debugHelper = null;
+            }
+            enemies.splice(i, 1);
+        }
+    }
             
 
     if (keyAnimator) keyAnimator();
@@ -265,7 +272,7 @@ function animate() {
 
     //for projectiles
     projectileManager.enemies = enemies;
-    projectileManager.update(clock);
+    projectileManager.update(mixerUpdateDelta);
 
     if (thirdPersonCamera) {
         thirdPersonCamera.Update(mixerUpdateDelta);

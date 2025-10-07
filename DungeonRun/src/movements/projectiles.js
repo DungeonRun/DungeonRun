@@ -77,14 +77,14 @@ export class ProjectileManager {
         */
     }
 
-    update(clock) {
+    update(delta) {
         //clear out old things
         this.debugHelpers.forEach(({ helper }) => this.scene.remove(helper));
         this.debugHelpers = [];
 
         this.projectiles = this.projectiles.filter(spell => {
             spell.material.uniforms.time.value = performance.now() / 1000;
-            spell.position.add(spell.userData.direction.clone().multiplyScalar(spell.userData.speed * clock.getDelta()));
+            spell.position.add(spell.userData.direction.clone().multiplyScalar(spell.userData.speed * delta));
             if (performance.now() - spell.userData.created > 5000) {
                 this.scene.remove(spell);
                 return false;
