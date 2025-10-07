@@ -64,6 +64,10 @@ const projectileManager = new ProjectileManager(scene, camera, enemies);
 let projectiles = [];
 
 function clearScene() {
+    if (thirdPersonCamera) {
+        thirdPersonCamera.cleanup();
+    }
+
     while (scene.children.length > 0) {
         scene.remove(scene.children[0]);
     }
@@ -274,10 +278,24 @@ function animate() {
     }
 
     if (characterControls && characterControls.health <= 0 && !gameOverUI.isGameOver) {
+        if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
+            document.exitPointerLock();
+        }
+        
+        const cameraPosition = camera.position.clone();
+        const cameraRotation = camera.rotation.clone();
+        
+        //remove player
+        if (characterControls.model) {
+            scene.remove(characterControls.model);
+        }
+        
         gameOverUI.show(() => {
             // Retry callback
             loadLevel(loadDemoLevel);
         });
+        
+        characterControls = null;
     }
 
     if (debugMode) updateDebugHelpers();

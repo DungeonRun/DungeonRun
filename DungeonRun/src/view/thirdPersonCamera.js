@@ -90,6 +90,11 @@ class ThirdPersonCamera {
 
         document.addEventListener('pointerlockchange', () => {
             this._isMouseLocked = document.pointerLockElement === document.body;
+            
+            if (!this._isMouseLocked && !this._target) {
+                //prevent re-locking when player is dead
+                this._isMouseLocked = false;
+            }
         });
 
         // Mouse movement for camera rotation
@@ -231,6 +236,14 @@ class ThirdPersonCamera {
             polar: this._polarAngle
         };
     }
+
+    //to exit pointer lock
+    cleanup() {
+        if (this._isMouseLocked) {
+            document.exitPointerLock();
+        }
+    }
+
 }
 
 export { ThirdPersonCamera };
