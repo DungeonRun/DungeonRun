@@ -12,7 +12,11 @@ import { loadDemoLevel } from '../levels/demoLevel.js';
 import { Inventory } from '../view/inventory.js';
 import { ProjectileManager } from './projectiles.js';
 import { GameOverUI } from '../view/gameOverUI.js';
+import { Loader } from '../load/load.js';
 
+//let Loader
+const loader = new Loader();
+loader.update(0);
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -115,6 +119,7 @@ async function loadLevel(levelLoader) {
 const keysPressed = {};
 const keyDisplayQueue = new KeyDisplay();
 
+loader.update(7);
 document.addEventListener('keydown', (event) => {
     keyDisplayQueue.down(event.key);
     keysPressed[event.key.toLowerCase()] = true;
@@ -157,6 +162,8 @@ document.addEventListener('keyup', (event) => {
     keyDisplayQueue.up(event.key);
     keysPressed[event.key.toLowerCase()] = false;
 }, false);
+
+loader.update(33);
 
 function grabKey() {
     if (!keyObject || isKeyGrabbed) return;
@@ -308,8 +315,9 @@ function animate() {
     if (debugMode) updateDebugHelpers();
 
     renderer.render(scene, camera);
+    
+    loader.update(100);
     requestAnimationFrame(animate);
-
     
 
     //example for switching levels ! this should hopefully be changed
@@ -366,4 +374,5 @@ function onWindowResize() {
 window.addEventListener('resize', onWindowResize);
 
 loadLevel(loadDemoLevel);
+loader.update(67);
 animate();
