@@ -8,7 +8,8 @@ export class Loader {
         this.isLoading = false;
         this.progress = 0;
         this.frameCounter = 0;
-        this.sampleInterval = 3;
+        this.sampleInterval = 100;
+        this.lastCaptureFrame = 0;
         
         this.setupLoadingScreen();
         this.setupBlurEffect();
@@ -21,7 +22,7 @@ export class Loader {
         this.loadingScreen.style.left = '0';
         this.loadingScreen.style.width = '100%';
         this.loadingScreen.style.height = '100%';
-        this.loadingScreen.style.backgroundColor = 'rgba(0, 0, 0, 0.7)';
+        this.loadingScreen.style.backgroundColor = 'rgba(0, 0, 0, 0.2)';
         this.loadingScreen.style.display = 'flex';
         this.loadingScreen.style.flexDirection = 'column';
         this.loadingScreen.style.justifyContent = 'center';
@@ -67,40 +68,39 @@ export class Loader {
         this.blurScene = new THREE.Scene();
         this.blurCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
         
-        //temporal blur
-        this.frameHistorySize = 5; //THIS IS A CONSTANT, fragment shader is hardcoded for 5
-        this.frameTextures = [];
-        this.frameWeights = [];
+        this.currentFrameTexture = new THREE.WebGLRenderTarget(
+            window.innerWidth, 
+            window.innerHeight,
+            {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                format: THREE.RGBAFormat
+            }
+        );
         
-        for (let i = 0; i < this.frameHistorySize; i++) {
-            const renderTarget = new THREE.WebGLRenderTarget(
-                window.innerWidth, 
-                window.innerHeight,
-                {
-                    minFilter: THREE.LinearFilter,
-                    magFilter: THREE.LinearFilter,
-                    format: THREE.RGBAFormat
-                }
-            );
-            this.frameTextures.push(renderTarget.texture);
-            this.frameWeights.push(1.0 / this.frameHistorySize); //uniform blurring
-        }
+        this.previousFrameTexture = new THREE.WebGLRenderTarget(
+            window.innerWidth, 
+            window.innerHeight,
+            {
+                minFilter: THREE.LinearFilter,
+                magFilter: THREE.LinearFilter,
+                format: THREE.RGBAFormat
+            }
+        );
         
-        const samplerUniforms = {};
-        const weightUniforms = {};
-        for (let i = 0; i < this.frameHistorySize; i++) {
-            samplerUniforms[`frameTexture${i}`] = { value: this.frameTextures[i] };
-            weightUniforms[`frameWeight${i}`] = { value: this.frameWeights[i] };
-        }
+        this.interpolationProgress = 0;
+        this.interpolationFrames = this.sampleInterval;
+        this.hasPreviousFrame = false;
+        this.lastCaptureFrame = 0;
         
         const blurMaterial = new THREE.ShaderMaterial({
             uniforms: {
-                tDiffuse: { value: null },
+                tCurrentFrame: { value: this.currentFrameTexture.texture },
+                tPreviousFrame: { value: this.previousFrameTexture.texture },
                 resolution: { value: new THREE.Vector2(window.innerWidth, window.innerHeight) },
-                frameCount: { value: this.frameHistorySize },
-                blurAmount: { value: 10000.0 }, //might be set even higher
-                ...samplerUniforms,
-                ...weightUniforms
+                interpolationProgress: { value: 0 },
+                hasPreviousFrame: { value: 0 },
+                blurAmount: { value: 6 }
             },
             vertexShader: `
                 varying vec2 vUv;
@@ -110,89 +110,39 @@ export class Loader {
                 }
             `,
             fragmentShader: `
-                uniform sampler2D tDiffuse;
-                uniform sampler2D frameTexture0;
-                uniform sampler2D frameTexture1;
-                uniform sampler2D frameTexture2;
-                uniform sampler2D frameTexture3;
-                uniform sampler2D frameTexture4;
-                uniform float frameWeight0;
-                uniform float frameWeight1;
-                uniform float frameWeight2;
-                uniform float frameWeight3;
-                uniform float frameWeight4;
-                uniform int frameCount;
+                uniform sampler2D tCurrentFrame;
+                uniform sampler2D tPreviousFrame;
+                uniform float interpolationProgress;
+                uniform int hasPreviousFrame;
                 uniform float blurAmount;
                 uniform vec2 resolution;
                 varying vec2 vUv;
                 
-                vec4 getFrameColor(int index) {
-                    if (index == 0) return texture2D(frameTexture0, vUv);
-                    if (index == 1) return texture2D(frameTexture1, vUv);
-                    if (index == 2) return texture2D(frameTexture2, vUv);
-                    if (index == 3) return texture2D(frameTexture3, vUv);
-                    if (index == 4) return texture2D(frameTexture4, vUv);
-                    return vec4(0.0);
-                }
-                
-                float getFrameWeight(int index) {
-                    if (index == 0) return frameWeight0;
-                    if (index == 1) return frameWeight1;
-                    if (index == 2) return frameWeight2;
-                    if (index == 3) return frameWeight3;
-                    if (index == 4) return frameWeight4;
-                    return 0.0;
-                }
-                
-                vec4 applyStrongBlur(sampler2D tex, vec2 uv, vec2 resolution, float strength) {
+                vec4 applyBlur(sampler2D tex, vec2 uv, float strength) {
                     vec4 color = vec4(0.0);
                     float total = 0.0;
+                    float sigma = strength;
                     
-                    //kernel code
-                    for (float x = -4.0; x <= 4.0; x++) {
-                        for (float y = -4.0; y <= 4.0; y++) {
-                            vec2 offset = vec2(x, y) * strength / resolution;
-                            float weight = 1.0 / (1.0 + length(vec2(x, y)) * 0.5);
+                    for (float i = -4.0; i <= 4.0; i++) {
+                        for (float j = -4.0; j <= 4.0; j++) {
+                            vec2 offset = vec2(i, j) * strength / resolution;
+                            float weight = exp(-(i*i + j*j) / (2.0 * sigma * sigma));
                             color += texture2D(tex, uv + offset) * weight;
                             total += weight;
                         }
                     }
-                    
                     return color / total;
                 }
                 
                 void main() {
-                    vec4 currentColor = texture2D(tDiffuse, vUv);
-                    vec4 historyColor = vec4(0.0);
-                    float totalWeight = 0.0;
-                    
-                    //temporal blur across 5 frames
-                    for(int i = 0; i < 5; i++) {
-                        if(i >= frameCount) break;
+                    if (hasPreviousFrame == 1) {
+                        vec4 previous = applyBlur(tPreviousFrame, vUv, blurAmount * (1.0 - interpolationProgress));
+                        vec4 current = applyBlur(tCurrentFrame, vUv, blurAmount * interpolationProgress);
                         
-                        vec4 frameColor = getFrameColor(i);
-                        float weight = getFrameWeight(i);
-                        
-                        //ignore blank before frame 0
-                        if(length(frameColor.rgb) > 0.01) {
-                            historyColor += frameColor * weight;
-                            totalWeight += weight;
-                        }
-                    }
-                    
-                    if(totalWeight > 0.0) {
-                        historyColor /= totalWeight;
+                        gl_FragColor = mix(previous, current, interpolationProgress);
                     } else {
-                        historyColor = currentColor;
+                        gl_FragColor = applyBlur(tCurrentFrame, vUv, blurAmount);
                     }
-                    
-                    //gaussian blur
-                    vec2 pixelSize = 1.0 / resolution;
-                    vec4 blurredResult = applyStrongBlur(tDiffuse, vUv, resolution, blurAmount);
-                    
-                    vec4 finalColor = mix(blurredResult, historyColor, 0.5);
-                    
-                    gl_FragColor = finalColor;
                 }
             `
         });
@@ -217,56 +167,66 @@ export class Loader {
         this.renderer.setRenderTarget(null);
         this.scene.background = originalBackground;
         
-        if (this.frameCounter % this.sampleInterval === 0) {
-            this.updateFrameHistory();
+        this.copyToTexture(this.renderTarget.texture, this.currentFrameTexture);
+        
+        //interpolation update
+        if (this.hasPreviousFrame) {
+            this.interpolationProgress = Math.min(1.0, this.interpolationProgress + (1.0 / this.interpolationFrames));
+            
+            const framesSinceLastCapture = this.frameCounter - this.lastCaptureFrame;
+            if (framesSinceLastCapture >= this.sampleInterval && this.interpolationProgress >= 0.5) {
+                this.capturePreviousFrame();
+                this.interpolationProgress = 0;
+                this.lastCaptureFrame = this.frameCounter; 
+            }
+            
+            if (this.interpolationProgress >= 1.0) {
+                this.interpolationProgress = 1.0;
+            }
+        } else {
+            if (this.frameCounter % this.sampleInterval === 0) {
+                this.capturePreviousFrame();
+                this.interpolationProgress = 0;
+                this.lastCaptureFrame = this.frameCounter;
+            }
         }
         
-        this.blurQuad.material.uniforms.tDiffuse.value = this.renderTarget.texture;
+        this.blurQuad.material.uniforms.tCurrentFrame.value = this.currentFrameTexture.texture;
+        this.blurQuad.material.uniforms.tPreviousFrame.value = this.previousFrameTexture.texture;
+        this.blurQuad.material.uniforms.interpolationProgress.value = this.interpolationProgress;
+        this.blurQuad.material.uniforms.hasPreviousFrame.value = this.hasPreviousFrame ? 1 : 0;
+        
         this.renderer.render(this.blurScene, this.blurCamera);
     }
 
-    updateFrameHistory() {
-        for (let i = this.frameHistorySize - 1; i > 0; i--) {
-            const temp = this.frameTextures[i];
-            this.frameTextures[i] = this.frameTextures[i - 1];
-            this.frameTextures[i - 1] = temp;
-        }
+    copyToTexture(sourceTexture, targetTexture) {
+        const tempScene = new THREE.Scene();
+        const tempCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+        const tempQuad = new THREE.Mesh(
+            new THREE.PlaneGeometry(2, 2),
+            new THREE.MeshBasicMaterial({ map: sourceTexture })
+        );
+        tempScene.add(tempQuad);
         
-        this.copyTextureToDataTexture(this.renderTarget.texture, this.frameTextures[0]);
+        this.renderer.setRenderTarget(targetTexture);
+        this.renderer.render(tempScene, tempCamera);
+        this.renderer.setRenderTarget(null);
         
-        for (let i = 0; i < this.frameHistorySize; i++) {
-            this.blurQuad.material.uniforms[`frameTexture${i}`].value = this.frameTextures[i];
-        }
+        tempQuad.material.dispose();
+        tempQuad.geometry.dispose();
     }
 
-    copyTextureToDataTexture(sourceTexture, targetDataTexture) {
-        const tempCanvas = document.createElement('canvas');
-        tempCanvas.width = window.innerWidth;
-        tempCanvas.height = window.innerHeight;
-        const ctx = tempCanvas.getContext('2d');
-        
-        // This is a simplified approach - in production you'd use readPixels
-        // For now, we'll just mark the texture as needing update
-        targetDataTexture.needsUpdate = true;
+    capturePreviousFrame() {
+        this.copyToTexture(this.currentFrameTexture.texture, this.previousFrameTexture);
+        this.hasPreviousFrame = true;
+        this.interpolationProgress = 0;
     }
 
     onResize() {
         if (this.renderTarget) {
             this.renderTarget.setSize(window.innerWidth, window.innerHeight);
-            
-            //resize frame history textures
-            for (let i = 0; i < this.frameHistorySize; i++) {
-                if (this.frameTextures[i]) {
-                    this.frameTextures[i].dispose();
-                    this.frameTextures[i] = new THREE.DataTexture(
-                        new Uint8Array(window.innerWidth * window.innerHeight * 4),
-                        window.innerWidth,
-                        window.innerHeight,
-                        THREE.RGBAFormat
-                    );
-                    this.frameTextures[i].needsUpdate = true;
-                }
-            }
+            this.currentFrameTexture.setSize(window.innerWidth, window.innerHeight);
+            this.previousFrameTexture.setSize(window.innerWidth, window.innerHeight);
             
             if (this.blurQuad && this.blurQuad.material) {
                 this.blurQuad.material.uniforms.resolution.value.set(window.innerWidth, window.innerHeight);
@@ -283,12 +243,14 @@ export class Loader {
     show() {
         this.isLoading = true;
         this.progress = 0;
-        this.blurStrength = 10.0;
         this.frameCounter = 0;
+        this.hasPreviousFrame = false;
+        this.interpolationProgress = 0;
+        this.lastCaptureFrame = 0;
         
         document.body.appendChild(this.loadingScreen);
         this.updateProgress(0);
-    }
+}
 
     //redundant below factors for hide/remove, need to refactor
     hide() {

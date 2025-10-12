@@ -62,6 +62,9 @@ let gameOverUI;
 //loading
 let loader;
 
+//controls
+let keyDisplayQueue;
+
 //projectiles
 const projectileManager = new ProjectileManager(scene, camera, enemies);
 let projectiles = [];
@@ -119,13 +122,13 @@ async function loadLevel(levelLoader) {
     playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
     gameOverUI = new GameOverUI();
     inventory = new Inventory();
+    keyDisplayQueue = new KeyDisplay();
+
     
 }
 
 // Keyboard controls
 const keysPressed = {};
-const keyDisplayQueue = new KeyDisplay();
-
 
 document.addEventListener('keydown', (event) => {
     if (loader && loader.isLoading) return; //to prevent controls during loading
