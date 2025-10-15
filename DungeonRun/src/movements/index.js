@@ -14,10 +14,6 @@ import { ProjectileManager } from './projectiles.js';
 import { GameOverUI } from '../view/gameOverUI.js';
 import { Loader } from '../load/load.js';
 
-//let Loader
-const loader = new Loader();
-loader.update(0);
-
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xa8def0);
@@ -63,6 +59,12 @@ let enemies = [];
 // Game Over UI
 let gameOverUI; 
 
+//loading
+let loader;
+
+//controls
+let keyDisplayQueue;
+
 //projectiles
 const projectileManager = new ProjectileManager(scene, camera, enemies);
 let projectiles = [];
@@ -93,14 +95,15 @@ function clearScene() {
 
 // Level loading
 async function loadLevel(levelLoader) {
+    loader = new Loader(scene, camera, renderer); //update parameters?
+    loader.show()
+
     clearScene();
-    playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
-    gameOverUI = new GameOverUI()
-    inventory = new Inventory();
     await levelLoader({
         scene,
         renderer,
         camera,
+        loader,
         onPlayerLoaded: ({ model, mixer, animationsMap, characterControls: cc, thirdPersonCamera: cam }) => {
             characterControls = cc;
             thirdPersonCamera = cam;
@@ -113,14 +116,23 @@ async function loadLevel(levelLoader) {
             keyObject = key;
         }
     });
+    loader.hide();
+
+    //show UI
+    playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
+    gameOverUI = new GameOverUI();
+    inventory = new Inventory();
+    keyDisplayQueue = new KeyDisplay();
+
+    
 }
 
 // Keyboard controls
 const keysPressed = {};
-const keyDisplayQueue = new KeyDisplay();
 
-loader.update(7);
 document.addEventListener('keydown', (event) => {
+    if (loader && loader.isLoading) return; //to prevent controls during loading
+
     keyDisplayQueue.down(event.key);
     keysPressed[event.key.toLowerCase()] = true;
 
@@ -159,11 +171,12 @@ document.addEventListener('keydown', (event) => {
 }, false);
 
 document.addEventListener('keyup', (event) => {
+     if (loader && loader.isLoading) return;
+
     keyDisplayQueue.up(event.key);
     keysPressed[event.key.toLowerCase()] = false;
 }, false);
 
-loader.update(33);
 
 function grabKey() {
     if (!keyObject || isKeyGrabbed) return;
@@ -230,6 +243,13 @@ function fireSpell() {
 const clock = new THREE.Clock();
 function animate() {
     const mixerUpdateDelta = clock.getDelta();
+
+    if (loader && loader.isLoading) {
+        loader.render();
+        requestAnimationFrame(animate);
+        return;
+    }
+
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keysPressed);
     }
@@ -316,7 +336,6 @@ function animate() {
 
     renderer.render(scene, camera);
     
-    loader.update(100);
     requestAnimationFrame(animate);
     
 
@@ -374,5 +393,4 @@ function onWindowResize() {
 window.addEventListener('resize', onWindowResize);
 
 loadLevel(loadDemoLevel);
-loader.update(67);
 animate();
