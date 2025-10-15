@@ -1,14 +1,42 @@
-function play(){
+// Create audio element for main menu
+const mainMenuMusic = new Audio('./src/sounds/mainMenuSound.mp3');
+mainMenuMusic.loop = true;  // Loop the music
+mainMenuMusic.volume = 0.5; // Set volume to 50%
+
+// Create audio element for button clicks
+const clickSound = new Audio('./src/sounds/clickButton.mp3');
+clickSound.volume = 0.7; // Set volume to 70%
+
+// Try to play music when page loads
+function playMainMenuMusic() {
+    mainMenuMusic.play().catch(error => {
+        console.log('Autoplay blocked. Music will play on first user interaction.');
+        // If autoplay is blocked, play on first click
+        document.addEventListener('click', () => {
+            mainMenuMusic.play();
+        }, { once: true });
+    });
+}
+
+// Navigation functions
+function play() {
+    // Stop the music before navigating
+    mainMenuMusic.pause();
+    mainMenuMusic.currentTime = 0;
+    
     window.location.href = "./src/movements/index.html";
 }
-function settings(){
-    alert("Under development");
-}
-function credits(){
+
+function settings() {
     alert("Under development");
 }
 
-function backGroundAnimate(){
+function credits() {
+    alert("Under development");
+}
+
+// Background animation
+function backGroundAnimate() {
     const canvas = document.getElementById('embers');
     const ctx = canvas.getContext('2d');
 
@@ -61,7 +89,10 @@ function backGroundAnimate(){
     }
 
     animate();
-
 }
 
-backGroundAnimate();
+// Initialize everything when page loads
+window.addEventListener('DOMContentLoaded', () => {
+    backGroundAnimate();
+    playMainMenuMusic();
+});
