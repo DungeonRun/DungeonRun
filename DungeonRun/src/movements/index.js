@@ -142,6 +142,10 @@ document.addEventListener('keydown', (event) => {
     if (event.code === 'Space') {
         playerAttack();
     }
+    
+    if (event.code === 'Space' && characterControls) {
+    characterControls.jump();
+    }
 
     if (event.key.toLowerCase() === 'h') { // Press H to damage player
         if (playerHealthBar) {

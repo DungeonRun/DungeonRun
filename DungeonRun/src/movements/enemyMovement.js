@@ -1,46 +1,47 @@
-// enemyMovement.js
+// enemyMovement.js - Updated with gravity
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
+import { PhysicsController } from './physics.js';
 
 export class EnemyMovement {
-    constructor(scene, player, startPosition = new THREE.Vector3(0, 1, 0), type = "mutant", onModelLoaded , collidables = []) {
+    constructor(scene, player, startPosition = new THREE.Vector3(0, 1, 0), type = "mutant", onModelLoaded, collidables = []) {
         this.raycaster = new THREE.Raycaster();
-        this.groundRaycaster = new THREE.Raycaster();
         this.scene = scene;
         this.enemyModel = null;
         this.spotLight = null;
         this.player = player;
-        this.lag = 0.05; // Movement speed
+        this.lag = 0.05;
         this.startPosition = startPosition;
-        this.type = type; // "mutant" or "scaryMonster"
-        this.groundOffset = 0; // Will be set based on enemy type
+        this.type = type;
+        this.groundOffset = 0;
         this.health = 30;
-        this.healthBar = null; 
+        this.healthBar = null;
         this.collidables = collidables;
 
-        //melee attacks
-        this.attackCooldown = 1.3; // seconds
+        // Physics controller will be initialized after model loads
+        this.physics = null;
+
+        this.attackCooldown = 1.3;
         this.lastAttackTime = 1;
         this.attackRange = 1.5;
         this.attackDamage = 10;
 
-        this.onModelLoaded = onModelLoaded; //for enemy healthbars
+        this.onModelLoaded = onModelLoaded;
 
-        this.mixer = null; // For FBX animations
-        this.animationsMap = new Map(); // Store all animations
-        this.currentAction = null; // Current playing animation
-        this.isMoving = false; // Track if enemy is moving
-        this.bobOffset = 0; // For walking bob effect
-        this.bobSpeed = 5; // Speed of bobbing motion
+        this.mixer = null;
+        this.animationsMap = new Map();
+        this.currentAction = null;
+        this.isMoving = false;
+        this.bobOffset = 0;
+        this.bobSpeed = 5;
 
-        // Choose which enemy to load
         if (this.type === "mutant") {
             this.loadMutant();
         } else if (this.type === "scaryMonster") {
             this.loadScaryMonster();
         } else if (this.type === "monsterEye") {
-            this.loadMonsterEye(); 
+            this.loadMonsterEye();
         }
     }
 
@@ -59,8 +60,11 @@ export class EnemyMovement {
                 });
 
                 this.enemyModel = fbx;
-                this.groundOffset = 1; // Raised to keep feet on ground
+                this.groundOffset = 1;
                 this.scene.add(this.enemyModel);
+
+                // Initialize physics after model is loaded
+                this.physics = new PhysicsController(this.enemyModel, this.scene, this.groundOffset);
 
                 if (typeof this.onModelLoaded === 'function') {
                     this.onModelLoaded(this.enemyModel);
@@ -69,23 +73,20 @@ export class EnemyMovement {
                 this.mixer = new THREE.AnimationMixer(fbx);
                 if (fbx.animations.length > 0) {
                     console.log(`Mutant has ${fbx.animations.length} animations`);
-                    // Store all animations
                     fbx.animations.forEach((clip, index) => {
                         const action = this.mixer.clipAction(clip);
                         this.animationsMap.set(index, action);
                         console.log(`Mutant animation ${index}: ${clip.name}, duration: ${clip.duration}s`);
                     });
-                    // Play first animation as default with adjusted speed
                     this.currentAction = this.animationsMap.get(0);
                     if (this.currentAction) {
                         this.currentAction.setLoop(THREE.LoopRepeat);
-                        this.currentAction.timeScale = 1.0; // Adjust this to match movement speed
+                        this.currentAction.timeScale = 1.0;
                         this.currentAction.play();
                     }
                 }
 
                 this.initSpotlight();
-                this.updateGroundPosition(); // Set initial ground position
             },
             (xhr) => console.log(`Mutant ${(xhr.loaded / xhr.total) * 100}% loaded`),
             (err) => console.error('Error loading Mutant:', err)
@@ -96,7 +97,6 @@ export class EnemyMovement {
         const loader = new FBXLoader();
         const textureLoader = new THREE.TextureLoader();
 
-        // Load textures
         const diffuse = textureLoader.load('/src/textures/scaryMonster/parasiteZombie_body_diffuse.png');
         const normal = textureLoader.load('/src/textures/scaryMonster/parasiteZombie_normal.png');
         const specular = textureLoader.load('/src/textures/scaryMonster/parasiteZombie_specular.png');
@@ -120,8 +120,11 @@ export class EnemyMovement {
                 });
 
                 this.enemyModel = fbx;
-                this.groundOffset = 0; // Adjust this if needed for scary monster
+                this.groundOffset = 0;
                 this.scene.add(this.enemyModel);
+
+                // Initialize physics
+                this.physics = new PhysicsController(this.enemyModel, this.scene, this.groundOffset);
 
                 if (typeof this.onModelLoaded === 'function') {
                     this.onModelLoaded(this.enemyModel);
@@ -130,23 +133,20 @@ export class EnemyMovement {
                 this.mixer = new THREE.AnimationMixer(fbx);
                 if (fbx.animations.length > 0) {
                     console.log(`ScaryMonster has ${fbx.animations.length} animations`);
-                    // Store all animations
                     fbx.animations.forEach((clip, index) => {
                         const action = this.mixer.clipAction(clip);
                         this.animationsMap.set(index, action);
                         console.log(`ScaryMonster animation ${index}: ${clip.name}, duration: ${clip.duration}s`);
                     });
-                    // Play first animation as default with adjusted speed
                     this.currentAction = this.animationsMap.get(0);
                     if (this.currentAction) {
                         this.currentAction.setLoop(THREE.LoopRepeat);
-                        this.currentAction.timeScale = 1.0; // Adjust this to match movement speed
+                        this.currentAction.timeScale = 1.0;
                         this.currentAction.play();
                     }
                 }
 
                 this.initSpotlight();
-                this.updateGroundPosition(); // Set initial ground position
             },
             (xhr) => console.log(`ScaryMonster ${(xhr.loaded / xhr.total) * 100}% loaded`),
             (err) => console.error('Error loading ScaryMonster:', err)
@@ -161,7 +161,6 @@ export class EnemyMovement {
                 fbx.scale.set(0.05, 0.05, 0.05);
                 fbx.position.copy(this.startPosition);
 
-                // Apply textures
                 fbx.traverse((child) => {
                     if (child.isMesh) {
                         child.castShadow = true;
@@ -183,34 +182,33 @@ export class EnemyMovement {
                 });
 
                 this.enemyModel = fbx;
-                this.groundOffset = 0; // Adjust this if needed for monster eye
+                this.groundOffset = 0;
                 this.scene.add(this.enemyModel);
+
+                // Initialize physics
+                this.physics = new PhysicsController(this.enemyModel, this.scene, this.groundOffset);
 
                 if (typeof this.onModelLoaded === 'function') {
                     this.onModelLoaded(this.enemyModel);
                 }
 
-                // Animations 
                 this.mixer = new THREE.AnimationMixer(fbx);
                 if (fbx.animations.length > 0) {
                     console.log(`MonsterEye has ${fbx.animations.length} animations`);
-                    // Store all animations
                     fbx.animations.forEach((clip, index) => {
                         const action = this.mixer.clipAction(clip);
                         this.animationsMap.set(index, action);
                         console.log(`MonsterEye animation ${index}: ${clip.name}, duration: ${clip.duration}s`);
                     });
-                    // Play first animation as default with adjusted speed
                     this.currentAction = this.animationsMap.get(0);
                     if (this.currentAction) {
                         this.currentAction.setLoop(THREE.LoopRepeat);
-                        this.currentAction.timeScale = 1.0; // Adjust this to match movement speed
+                        this.currentAction.timeScale = 1.0;
                         this.currentAction.play();
                     }
                 }
 
                 this.initSpotlight();
-                this.updateGroundPosition(); // Set initial ground position
             },
             (xhr) => console.log(`Monster Eye ${(xhr.loaded / xhr.total) * 100}% loaded`),
             (err) => console.error('Error loading Monster Eye:', err)
@@ -228,36 +226,6 @@ export class EnemyMovement {
         this.spotLight.target.position.copy(this.player.position);
         this.scene.add(this.spotLight);
         this.scene.add(this.spotLight.target);
-    }
-
-    updateGroundPosition() {
-        if (!this.enemyModel) return;
-
-        // Cast a ray downward from high above the enemy
-        const rayOrigin = new THREE.Vector3(
-            this.enemyModel.position.x,
-            this.enemyModel.position.y + 50,
-            this.enemyModel.position.z
-        );
-        const rayDirection = new THREE.Vector3(0, -1, 0);
-        
-        this.groundRaycaster.set(rayOrigin, rayDirection);
-        this.groundRaycaster.far = 100; // Make sure we can reach the ground
-
-        // Get all objects except the enemy itself and spotlights
-        const objectsToTest = this.scene.children.filter(obj => 
-            obj !== this.enemyModel && 
-            obj !== this.spotLight && 
-            obj.type !== 'SpotLight' &&
-            obj.isMesh
-        );
-        
-        const intersects = this.groundRaycaster.intersectObjects(objectsToTest, true);
-
-        if (intersects.length > 0) {
-            // Set enemy position to be on the ground
-            this.enemyModel.position.y = intersects[0].point.y + this.groundOffset;
-        }
     }
 
     switchAnimation(animationIndex) {
@@ -297,41 +265,46 @@ export class EnemyMovement {
             if (hit.name === 'player' || hit.parent?.name === 'player') {
                 if (distance > 2) {
                     shouldMove = true;
-                    // Rotate enemy to face player
                     const angle = Math.atan2(
                         this.player.position.x - this.enemyModel.position.x,
                         this.player.position.z - this.enemyModel.position.z
                     );
                     this.enemyModel.rotation.y = angle;
                     
-                    this.enemyModel.position.add(directionToPlayer.clone().multiplyScalar(this.lag));
-                    // Update ground position after moving
-                    this.updateGroundPosition();
+                    // Only move on X and Z, Y is handled by physics
+                    const moveVec = directionToPlayer.clone();
+                    moveVec.y = 0;
+                    moveVec.normalize();
+                    moveVec.multiplyScalar(this.lag);
+                    
+                    this.enemyModel.position.x += moveVec.x;
+                    this.enemyModel.position.z += moveVec.z;
                 }
             }
         } else {
             if (distance > 2) {
                 shouldMove = true;
-                // Rotate enemy to face player
                 const angle = Math.atan2(
                     this.player.position.x - this.enemyModel.position.x,
                     this.player.position.z - this.enemyModel.position.z
                 );
                 this.enemyModel.rotation.y = angle;
                 
-                this.enemyModel.position.add(directionToPlayer.clone().multiplyScalar(this.lag));
-                // Update ground position after moving
-                this.updateGroundPosition();
+                // Only move on X and Z, Y is handled by physics
+                const moveVec = directionToPlayer.clone();
+                moveVec.y = 0;
+                moveVec.normalize();
+                moveVec.multiplyScalar(this.lag);
+                
+                this.enemyModel.position.x += moveVec.x;
+                this.enemyModel.position.z += moveVec.z;
             }
         }
 
-        // Switch between walk and idle animations
         if (shouldMove && !this.isMoving) {
-            // Start walking - try animation index 1 (usually walk/run)
             this.switchAnimation(1);
             this.isMoving = true;
         } else if (!shouldMove && this.isMoving) {
-            // Stop walking - back to idle (animation index 0)
             this.switchAnimation(0);
             this.isMoving = false;
         }
@@ -347,7 +320,6 @@ export class EnemyMovement {
     }
 
     willCollide(nextPosition) {
-        // Get the bounding box at the next position
         const box = new THREE.Box3().setFromObject(this.model);
         const delta = nextPosition.clone().sub(this.model.position);
         box.translate(delta);
@@ -361,15 +333,13 @@ export class EnemyMovement {
     }
 
     update(delta, characterControls) {
+        // Update physics (gravity) for enemy
+        if (this.physics) {
+            this.physics.update(delta);
+        }
+        
         this.checkForTarget();
         if (this.mixer) this.mixer.update(delta);
-        
-        // Add bobbing effect when moving
-        if (this.isMoving && this.enemyModel) {
-            this.bobOffset += delta * this.bobSpeed;
-            const bobAmount = Math.sin(this.bobOffset * Math.PI * 2) * 0.05;
-            this.enemyModel.position.y += bobAmount;
-        }
 
         // Attack logic
         if (this.enemyModel && characterControls) {
@@ -391,7 +361,6 @@ export class EnemyMovement {
         }
     }
 
-    //helper for enemy health ui
     get model() {
         return this.enemyModel;
     }

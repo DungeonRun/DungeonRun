@@ -1,10 +1,11 @@
 import * as THREE from 'three';
 import { UP, DOWN, LEFT, RIGHT, DIRECTIONS } from './utils.js';
 import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
+import { PhysicsController } from './physics.js';
 
 
 class CharacterControls {
-    constructor(model, mixer, animationsMap, thirdPersonCamera, currentAction, collidables = []) {
+    constructor(model, mixer, animationsMap, thirdPersonCamera, currentAction, collidables = [], scene) {
         this.model = model;
         this.mixer = mixer;
         this.animationsMap = animationsMap || new Map();
@@ -14,13 +15,15 @@ class CharacterControls {
         this.walkDirection = new THREE.Vector3();
         this.rotateAngle = new THREE.Vector3(0, 1, 0);
         this.rotateQuarternion = new THREE.Quaternion();
-        this.fadeDuration = 0.15; // Faster animation transitions
-        this.runVelocity = 5.5; // Balanced speed
-        this.walkVelocity = 2.5; // Balanced speed
-        this.rotationSpeed = 0.25; // Smooth rotation speed
+        this.fadeDuration = 0.15;
+        this.runVelocity = 5.5;
+        this.walkVelocity = 2.5;
+        this.rotationSpeed = 0.25;
         this.collidables = collidables;
-
         this.health = 100;
+
+        // Add physics controller for gravity
+        this.physics = new PhysicsController(model, scene, 0); // 0 offset for player
 
         this.animationsMap.forEach((value, key) => {
             if (key === currentAction) {
@@ -30,11 +33,10 @@ class CharacterControls {
     }
 
     switchRunToggle() {
-        this.toggleRun = !this.toggleRun; //unused function now
+        this.toggleRun = !this.toggleRun;
     }
 
     willCollide(nextPosition) {
-        // Get the bounding box at the next position
         const box = new THREE.Box3().setFromObject(this.model);
         const delta = nextPosition.clone().sub(this.model.position);
         box.translate(delta);
@@ -47,7 +49,15 @@ class CharacterControls {
         return false;
     }
 
+    jump() {
+        // Trigger jump through physics controller
+        this.physics.jump();
+    }
+
     update(delta, keysPressed) {
+        // Update physics (gravity) first
+        this.physics.update(delta);
+
         const directionPressed = DIRECTIONS.some(key => keysPressed[key] === true);
         let play = '';
         if (directionPressed && keysPressed['shift']) {
@@ -71,26 +81,20 @@ class CharacterControls {
         this.mixer.update(delta);
 
         if (this.currentAction === 'Run' || this.currentAction === 'Walk') {
-            // Calculate movement direction based on camera and keys pressed
             let moveDirection = new THREE.Vector3(0, 0, 0);
             
-            // Get camera direction for movement
-            // Camera looks toward player, so forward is from camera to player
             const cameraWorldPos = this.thirdPersonCamera._camera.getWorldPosition(new THREE.Vector3());
             const playerPos = this.model.position.clone();
             
-            // Calculate forward direction (toward where camera is looking)
             const cameraForward = new THREE.Vector3();
             cameraForward.subVectors(playerPos, cameraWorldPos);
-            cameraForward.y = 0; // Ignore vertical component
+            cameraForward.y = 0;
             cameraForward.normalize();
             
-            // Calculate right direction (perpendicular to forward)
             const cameraRight = new THREE.Vector3();
             cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0));
             cameraRight.normalize();
 
-            // Calculate movement based on keys pressed
             if (keysPressed[UP]) {
                 moveDirection.add(cameraForward);
             }
@@ -104,55 +108,50 @@ class CharacterControls {
                 moveDirection.add(cameraRight);
             }
 
-            // Normalize movement direction
             if (moveDirection.length() > 0) {
                 moveDirection.normalize();
                 
-                // Set character rotation to face movement direction
-                // Add PI to make character face forward instead of backward
                 const angle = Math.atan2(moveDirection.x, moveDirection.z) + Math.PI;
                 this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
                 
-                // Smooth, frame-rate independent rotation
                 this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);
 
-                // Move the character directly in the movement direction
-                // This ensures movement matches the intended direction exactly
                 const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
                 const moveX = moveDirection.x * velocity * delta;
                 const moveZ = moveDirection.z * velocity * delta;
+                
+                // Only move on X and Z, Y is handled by physics
                 const nextPosition = this.model.position.clone().add(new THREE.Vector3(moveX, 0, moveZ));
 
                 if (!this.willCollide(nextPosition)) {
-                    this.model.position.copy(nextPosition);
+                    this.model.position.x = nextPosition.x;
+                    this.model.position.z = nextPosition.z;
                 }
-                
             }
         }
     }
 
-
     directionOffset(keysPressed) {
-        let directionOffset = 0; // arrowup
+        let directionOffset = 0;
 
         if (keysPressed[UP]) {
             if (keysPressed[LEFT]) {
-                directionOffset = Math.PI / 4; // arrowup+arrowleft
+                directionOffset = Math.PI / 4;
             } else if (keysPressed[RIGHT]) {
-                directionOffset = -Math.PI / 4; // arrowup+arrowright
+                directionOffset = -Math.PI / 4;
             }
         } else if (keysPressed[DOWN]) {
             if (keysPressed[LEFT]) {
-                directionOffset = Math.PI / 4 + Math.PI / 2; // arrowdown+arrowleft
+                directionOffset = Math.PI / 4 + Math.PI / 2;
             } else if (keysPressed[RIGHT]) {
-                directionOffset = -Math.PI / 4 - Math.PI / 2; // arrowdown+arrowright
+                directionOffset = -Math.PI / 4 - Math.PI / 2;
             } else {
-                directionOffset = Math.PI; // arrowdown
+                directionOffset = Math.PI;
             }
         } else if (keysPressed[LEFT]) {
-            directionOffset = Math.PI / 2; // arrowleft
+            directionOffset = Math.PI / 2;
         } else if (keysPressed[RIGHT]) {
-            directionOffset = -Math.PI / 2; // arrowright
+            directionOffset = -Math.PI / 2;
         }
 
         return directionOffset;
