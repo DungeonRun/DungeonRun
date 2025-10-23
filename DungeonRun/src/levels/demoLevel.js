@@ -113,7 +113,7 @@ export async function loadDemoLevel({
 
     // Player
     new GLTFLoader().load(
-        '/src/models/Soldier.glb',
+        '/src/animations/avatar/avatar2.glb',
         function (gltf) {
             const model = gltf.scene;
             model.traverse(function (object) {

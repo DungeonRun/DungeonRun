@@ -110,7 +110,7 @@ class CharacterControls {
                 
                 // Set character rotation to face movement direction
                 // Add PI to make character face forward instead of backward
-                const angle = Math.atan2(moveDirection.x, moveDirection.z) + Math.PI;
+                const angle = Math.atan2(moveDirection.x, moveDirection.z);
                 this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
                 
                 // Smooth, frame-rate independent rotation
