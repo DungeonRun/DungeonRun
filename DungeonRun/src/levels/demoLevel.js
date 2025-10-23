@@ -7,8 +7,6 @@ import { CharacterControls } from '../movements/characterControls.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { EnemyHealthBar } from '../view/enemyHealthBar.js';
 
-
-
 export async function loadDemoLevel({
     scene,
     renderer,
@@ -21,8 +19,8 @@ export async function loadDemoLevel({
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
-    // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0. ));
+    // 🌤 Ambient and Directional Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
     dirLight.position.set(-60, 100, -10);
     dirLight.castShadow = true;
@@ -36,7 +34,7 @@ export async function loadDemoLevel({
     dirLight.shadow.mapSize.height = 4096;
     scene.add(dirLight);
 
-    // Floor
+    // 🏜️ Floor
     const textureLoader = new THREE.TextureLoader();
     const [sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion] = await Promise.all([
         textureLoader.loadAsync('/sand/Sand 002_COLOR.jpg'),
@@ -44,6 +42,7 @@ export async function loadDemoLevel({
         textureLoader.loadAsync('/sand/Sand 002_DISP.jpg'),
         textureLoader.loadAsync('/sand/Sand 002_OCC.jpg')
     ]);
+
     const WIDTH = 80, LENGTH = 80;
     const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 100, 100);
     const material = new THREE.MeshStandardMaterial({
@@ -54,22 +53,23 @@ export async function loadDemoLevel({
         aoMap: sandAmbientOcclusion,
         roughness: 0.7,
         metalness: 0.0,
-        color: 0x000000, //tint
+        color: 0x000000,
         emissive: 0x332200,
         emissiveIntensity: 0.1
     });
+
     [material.map, material.normalMap, material.displacementMap, material.aoMap].forEach(map => {
         map.wrapS = map.wrapT = THREE.RepeatWrapping;
         map.repeat.set(8, 8);
         map.anisotropy = renderer.capabilities.getMaxAnisotropy();
     });
+
     const floor = new THREE.Mesh(geometry, material);
     floor.receiveShadow = true;
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // Room Cube
-    //ALLLL of this is placeholder for room model geometry.
+    //  Room Cube
     const size = 30;
     const roomGeometry = new THREE.BoxGeometry(size, size, size);
     const roomMaterial = new THREE.MeshStandardMaterial({
@@ -80,30 +80,20 @@ export async function loadDemoLevel({
     room.position.y = size / 2 - 0.05;
     room.receiveShadow = true;
     scene.add(room);
-    // Assuming 'size' is the length of the cube's sides and 'room' is your cube mesh
-    const half = size / 2;
-    const wallThickness = 0.2; // Thin wall
 
+    const half = size / 2;
+    const wallThickness = 0.2;
     const wallPlanes = [
-        // +X wall (right)
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
-        // -X wall (left)
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
-        // +Z wall (back)
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
-        // -Z wall (front)
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
-        // Floor (optional)
-        // new THREE.Mesh(new THREE.BoxGeometry(size, wallThickness, size), new THREE.MeshBasicMaterial({ visible: false })),
-        // Ceiling (optional)
-        // new THREE.Mesh(new THREE.BoxGeometry(size, wallThickness, size), new THREE.MeshBasicMaterial({ visible: false })),
+        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })), // +X
+        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })), // -X
+        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })), // +Z
+        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false }))  // -Z
     ];
 
-    // Position the walls
-    wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z); // +X
-    wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z); // -X
-    wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half); // +Z
-    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half); // -Z
+    wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z);
+    wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z);
+    wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half);
+    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);
 
     wallPlanes.forEach(wall => {
         wall.geometry.computeBoundsTree();
@@ -111,7 +101,7 @@ export async function loadDemoLevel({
     });
     const collidables = [...wallPlanes];
 
-    // Player
+    //  Player
     new GLTFLoader().load(
         '/src/animations/avatar/avatar2.glb',
         function (gltf) {
@@ -124,13 +114,12 @@ export async function loadDemoLevel({
             });
             model.name = 'player';
 
-            const playerLight = new THREE.PointLight(0xff7700, 15, 15); 
-            playerLight.position.set(0, 3, 0); 
+            //  Player point light
+            const playerLight = new THREE.PointLight(0xff7700, 15, 15);
+            playerLight.position.set(0, 3, 0);
             model.add(playerLight);
 
             scene.add(model);
-
-
 
             const gltfAnimations = gltf.animations;
             const mixer = new THREE.AnimationMixer(model);
@@ -140,7 +129,7 @@ export async function loadDemoLevel({
             });
 
             const thirdPersonCamera = new ThirdPersonCamera({
-                camera: camera, 
+                camera: camera,
                 target: model,
                 scene: scene
             });
@@ -149,27 +138,27 @@ export async function loadDemoLevel({
 
             if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
 
-            // Enemies
+            //  Enemies
             const enemies = [];
             const enemyHealthBars = [];
             const enemyConfigs = [
-                { pos: new THREE.Vector3(0, 1, -11), type: "mutant" },
-                { pos: new THREE.Vector3(3, 1, -12), type: "mutant" },
-                { pos: new THREE.Vector3(-3, 1, -8), type: "scaryMonster" },
-                { pos: new THREE.Vector3(1, 1, -8), type: "monsterEye" }
+                { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
+                { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+                { pos: new THREE.Vector3(-3, 1, -8), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+                { pos: new THREE.Vector3(1, 1, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" }
             ];
 
-             enemyConfigs.forEach(cfg => {
-                const enemy = new EnemyMovement(scene, model, cfg.pos, cfg.type, (enemyModel) => {
-                    //lighting effect
-                    const enemyLight = new THREE.PointLight(0xff0000, 1, 4); // Red light with 5 unit radius
-                    enemyLight.position.set(0, 0, 0); // Position above enemy center
+            enemyConfigs.forEach(cfg => {
+                const enemy = new EnemyMovement(scene, cfg.modelPath, cfg.pos, cfg.type, (enemyModel) => {
+                    //  Enemy point light
+                    const enemyLight = new THREE.PointLight(0xff0000, 1, 4);
+                    enemyLight.position.set(0, 0, 0);
                     enemyModel.add(enemyLight);
-                    
-                    // Add light glow effect
+
+                    // Optional glow effect (commented)
                     /*
                     const lightGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-                    const lightMaterial = new THREE.MeshBasicMaterial({ 
+                    const lightMaterial = new THREE.MeshBasicMaterial({
                         color: 0xff0000,
                         transparent: true,
                         opacity: 0.6
@@ -179,28 +168,31 @@ export async function loadDemoLevel({
                     enemyModel.add(lightGlow);
                     */
 
-                    const bar = new EnemyHealthBar(enemyModel, { maxHealth: enemy.health });
-                    enemy.healthBar = bar; // Link bar to enemy
+                    //  Enemy health bar   Niel please fix
+                    const bar = new EnemyHealthBar(enemyModel, { maxHealth: 100 });
+                    enemy.healthBar = bar;
                     enemyHealthBars.push(bar);
                 }, collidables);
+
                 enemies.push(enemy);
             });
+
             if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
         }
     );
 
-    // Key
+    //  Key
     addGlowingKey(scene).then(({ animator, key }) => {
         if (onKeyLoaded) onKeyLoaded({ animator, key });
     });
 
-    // Treasure Chests
+    //  Treasure Chests
     const chestLoader = new GLTFLoader();
     const chestPositions = [
-        new THREE.Vector3(-12, 0, -12),  // Bottom-left corner
-        new THREE.Vector3(12, 0, -12),   // Bottom-right corner
-        new THREE.Vector3(-12, 0, 12),   // Top-left corner
-        new THREE.Vector3(12, 0, 12)     // Top-right corner
+        new THREE.Vector3(-12, 0, -12),
+        new THREE.Vector3(12, 0, -12),
+        new THREE.Vector3(-12, 0, 12),
+        new THREE.Vector3(12, 0, 12)
     ];
 
     chestPositions.forEach((position, index) => {
@@ -209,41 +201,34 @@ export async function loadDemoLevel({
             function (gltf) {
                 const chest = gltf.scene.clone();
                 chest.position.copy(position);
-                chest.scale.set(1.0, 1.0, 1.0); // Scale up the chest to 3x bigger (was 0.5, now 1.5)
-                
-                // Rotate the right chest (index 1) to face away from the wall
-                if (index === 1) { // Right chest (bottom-right corner)
-                    chest.rotation.y = Math.PI; // Rotate 180 degrees to face away from wall
+                chest.scale.set(1.0, 1.0, 1.0);
+
+                if (index === 1 || index === 3) {
+                    chest.rotation.y = Math.PI;
                 }
-                if (index === 3) { // Right chest (bottom-right corner)
-                    chest.rotation.y = Math.PI; // Rotate 180 degrees to face away from wall
-                }
-                
-                // Enable shadows
+
                 chest.traverse(function (object) {
                     if (object.isMesh) {
                         object.castShadow = true;
                         object.receiveShadow = true;
                     }
                 });
-                
+
                 chest.name = `treasure_chest_${index}`;
                 scene.add(chest);
-                
-                // Create collision box for the chest
+
                 const chestCollisionBox = new THREE.Mesh(
-                    new THREE.BoxGeometry(2, 2, 2), // Collision box size
-                    new THREE.MeshBasicMaterial({ visible: false }) // Invisible collision mesh
+                    new THREE.BoxGeometry(2, 2, 2),
+                    new THREE.MeshBasicMaterial({ visible: false })
                 );
                 chestCollisionBox.position.copy(position);
-                chestCollisionBox.position.y = 1; // Center the collision box vertically
+                chestCollisionBox.position.y = 1;
                 chestCollisionBox.name = `chest_collision_${index}`;
-                chestCollisionBox.geometry.computeBoundsTree(); // Enable BVH for collision detection
+                chestCollisionBox.geometry.computeBoundsTree();
                 scene.add(chestCollisionBox);
-                
-                // Add to collidables array for player and enemy collision detection
+
                 collidables.push(chestCollisionBox);
-                
+
                 console.log(`Treasure chest ${index + 1} added at position:`, position);
             },
             function (progress) {
@@ -257,10 +242,7 @@ export async function loadDemoLevel({
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {
-    // Create a geometry bounding box helper mesh for intersection test
     const geometry = mesh.geometry;
-    if (!geometry.boundsTree) return false; // BVH not built
-
-    // Use BVH's intersectsBox method
+    if (!geometry.boundsTree) return false;
     return geometry.boundsTree.intersectsBox(box, mesh.matrixWorld);
 }
