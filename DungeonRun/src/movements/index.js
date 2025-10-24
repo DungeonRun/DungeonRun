@@ -151,12 +151,12 @@ document.addEventListener('keydown', (event) => {
 
     if (event.key === 'q') inventory.switchItem();
 
-    if (event.code === 'Space') {
+    if (event.key === 'e') {
         playerAttack();
     }
     
     if (event.code === 'Space' && characterControls) {
-    characterControls.jump();
+        characterControls.jump();
     }
 
     if (event.key.toLowerCase() === 'h') { // Press H to damage player
