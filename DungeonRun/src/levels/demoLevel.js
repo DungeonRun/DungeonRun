@@ -173,7 +173,7 @@ export async function loadDemoLevel({
     const enemiesLoadPromise = playerLoadPromise.then(async (playerData) => {
         for (const cfg of enemyConfigs) {
             await new Promise(resolve => {
-                const enemy = new EnemyMovement(scene, model, cfg.pos, cfg.type, (enemyModel) => {
+                const enemy = new EnemyMovement(scene, cfg.modelPath, cfg.pos, cfg.type, (enemyModel) => {
                     //lighting effect
                     const enemyLight = new THREE.PointLight(0xff0000, 1, 4); // Red light with 5 unit radius
                     enemyLight.position.set(0, 0, 0); // Position above enemy center
