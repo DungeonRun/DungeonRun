@@ -10,6 +10,7 @@ import { loadDemoLevel } from '../levels/demoLevel.js';
 import { Inventory } from '../view/inventory.js';
 import { ProjectileManager } from './projectiles.js';
 import { GameOverUI } from '../view/gameOverUI.js';
+import { Loader } from '../load/load.js';
 import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 
 // Scene setup
@@ -52,6 +53,12 @@ let enemies = [];
 // Game Over UI
 let gameOverUI;
 
+//loading
+let loader;
+
+//controls
+let keyDisplayQueue;
+
 // Projectiles
 const projectileManager = new ProjectileManager(scene, camera, enemies);
 let projectiles = [];
@@ -81,14 +88,15 @@ function clearScene() {
 
 // Level loading
 async function loadLevel(levelLoader) {
+    loader = new Loader(scene, camera, renderer); //update parameters?
+    loader.show()
+
     clearScene();
-    playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
-    gameOverUI = new GameOverUI();
-    inventory = new Inventory();
     await levelLoader({
         scene,
         renderer,
         camera,
+        loader,
         onPlayerLoaded: ({ model, mixer, animationsMap, characterControls: cc, thirdPersonCamera: cam }) => {
             characterControls = cc;
             thirdPersonCamera = cam;
@@ -101,13 +109,23 @@ async function loadLevel(levelLoader) {
             keyObject = key;
         }
     });
+    loader.hide();
+
+    //show UI
+    playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
+    gameOverUI = new GameOverUI();
+    inventory = new Inventory();
+    keyDisplayQueue = new KeyDisplay();
+
+    
 }
 
 // Keyboard controls
 const keysPressed = {};
-const keyDisplayQueue = new KeyDisplay();
 
 document.addEventListener('keydown', (event) => {
+    if (loader && loader.isLoading) return; //to prevent controls during loading
+
     keysPressed[event.code] = true;
     keyDisplayQueue.down(event.code); // Use event.code for consistency
 
@@ -147,9 +165,12 @@ document.addEventListener('keydown', (event) => {
 }, false);
 
 document.addEventListener('keyup', (event) => {
+     if (loader && loader.isLoading) return;
+
     keysPressed[event.code] = false;
     keyDisplayQueue.up(event.code);
 }, false);
+
 
 function grabKey() {
     if (!keyObject || isKeyGrabbed || !characterControls) return;
@@ -201,6 +222,13 @@ function swordAttack() {
 const clock = new THREE.Clock();
 function animate() {
     const mixerUpdateDelta = clock.getDelta();
+
+    if (loader && loader.isLoading) {
+        loader.render();
+        requestAnimationFrame(animate);
+        return;
+    }
+
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keysPressed);
 
@@ -292,6 +320,7 @@ function animate() {
     if (debugMode) updateDebugHelpers();
 
     renderer.render(scene, camera);
+    
     requestAnimationFrame(animate);
 
     if (isKeyGrabbed && !window._levelSwitched) {
