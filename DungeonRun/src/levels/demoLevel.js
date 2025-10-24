@@ -13,6 +13,7 @@ export async function loadDemoLevel({
     scene,
     renderer,
     camera,
+    loader,
     onPlayerLoaded,
     onEnemiesLoaded,
     onKeyLoaded
@@ -111,55 +112,79 @@ export async function loadDemoLevel({
     });
     const collidables = [...wallPlanes];
 
+    const playerSpawn = new THREE.Vector3(0, 3, 0);
+
+    const enemyConfigs = [
+        { pos: new THREE.Vector3(0, 1, -11), type: "mutant" },
+        { pos: new THREE.Vector3(3, 1, -12), type: "mutant" },
+        { pos: new THREE.Vector3(-3, 1, -8), type: "scaryMonster" },
+        { pos: new THREE.Vector3(1, 1, -8), type: "monsterEye" }
+    ];
+
+    const chestPositions = [
+        new THREE.Vector3(-12, 0, -12),  // Bottom-left corner
+        new THREE.Vector3(12, 0, -12),   // Bottom-right corner
+        new THREE.Vector3(-12, 0, 12),   // Top-left corner
+        new THREE.Vector3(12, 0, 12)     // Top-right corner
+    ];
+
+    const totalSteps = 1 + enemyConfigs.length + 1 + chestPositions.length;
+    let completedSteps = 0;
+    function updateLoader() {
+        if (loader) loader.updateProgress((++completedSteps / totalSteps) * 100);
+    }
+
     // Player
-    new GLTFLoader().load(
-        '/src/models/Soldier.glb',
-        function (gltf) {
-            const model = gltf.scene;
-            model.traverse(function (object) {
-                if (object.isMesh) {
-                    object.castShadow = true;
-                    object.name = 'player';
-                }
-            });
-            model.name = 'player';
+    let model; // playerModel, refactor
+    const playerLoadPromise = new Promise(resolve => {
+        new GLTFLoader().load(
+            '/src/models/Soldier.glb',
+            function (gltf) {
+                model = gltf.scene;
+                model.traverse(function (object) {
+                    if (object.isMesh) {
+                        object.castShadow = true;
+                        object.name = 'player';
+                    }
+                });
+                model.name = 'player';
 
-            const playerLight = new THREE.PointLight(0xff7700, 15, 15); 
-            playerLight.position.set(0, 3, 0); 
-            model.add(playerLight);
+                const playerLight = new THREE.PointLight(0xff7700, 15, 15); 
+                playerLight.position.copy(playerSpawn);
+                model.add(playerLight);
 
-            scene.add(model);
+                scene.add(model);
 
 
 
-            const gltfAnimations = gltf.animations;
-            const mixer = new THREE.AnimationMixer(model);
-            const animationsMap = new Map();
-            gltfAnimations.filter(a => a.name !== 'TPose').forEach((a) => {
-                animationsMap.set(a.name, mixer.clipAction(a));
-            });
+                const gltfAnimations = gltf.animations;
+                const mixer = new THREE.AnimationMixer(model);
+                const animationsMap = new Map();
+                gltfAnimations.filter(a => a.name !== 'TPose').forEach((a) => {
+                    animationsMap.set(a.name, mixer.clipAction(a));
+                });
 
-            const thirdPersonCamera = new ThirdPersonCamera({
-                camera: camera, 
-                target: model,
-                scene: scene
-            });
+                const thirdPersonCamera = new ThirdPersonCamera({
+                    camera: camera, 
+                    target: model,
+                    scene: scene
+                });
 
             const characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle', collidables, scene);
 
-            if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
-
-            // Enemies
-            const enemies = [];
-            const enemyHealthBars = [];
-            const enemyConfigs = [
-                { pos: new THREE.Vector3(0, 1, -11), type: "mutant" },
-                { pos: new THREE.Vector3(3, 1, -12), type: "mutant" },
-                { pos: new THREE.Vector3(-3, 1, -8), type: "scaryMonster" },
-                { pos: new THREE.Vector3(1, 1, -8), type: "monsterEye" }
-            ];
-
-             enemyConfigs.forEach(cfg => {
+                if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
+                updateLoader();
+                resolve();
+            }
+        );
+    });
+    
+    // Enemies (requires player since it for some reason requires the playerModel in the constructor)
+    const enemies = [];
+    const enemyHealthBars = [];
+    const enemiesLoadPromise = playerLoadPromise.then(async (playerData) => {
+        for (const cfg of enemyConfigs) {
+            await new Promise(resolve => {
                 const enemy = new EnemyMovement(scene, model, cfg.pos, cfg.type, (enemyModel) => {
                     //lighting effect
                     const enemyLight = new THREE.PointLight(0xff0000, 1, 4); // Red light with 5 unit radius
@@ -182,78 +207,76 @@ export async function loadDemoLevel({
                     const bar = new EnemyHealthBar(enemyModel, { maxHealth: enemy.health });
                     enemy.healthBar = bar; // Link bar to enemy
                     enemyHealthBars.push(bar);
+
+                    updateLoader();
+                    resolve();
                 }, collidables);
                 enemies.push(enemy);
             });
-            if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
-        }
-    );
+        };
+        if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
+    });
 
     // Key
-    addGlowingKey(scene).then(({ animator, key }) => {
+    const keyLoadPromise = addGlowingKey(scene).then(({ animator, key }) => {
         if (onKeyLoaded) onKeyLoaded({ animator, key });
+        updateLoader();
+        return { animator, key };
     });
 
-    // Treasure Chests
+    // Treasure Chests 
     const chestLoader = new GLTFLoader();
-    const chestPositions = [
-        new THREE.Vector3(-12, 0, -12),  // Bottom-left corner
-        new THREE.Vector3(12, 0, -12),   // Bottom-right corner
-        new THREE.Vector3(-12, 0, 12),   // Top-left corner
-        new THREE.Vector3(12, 0, 12)     // Top-right corner
-    ];
-
-    chestPositions.forEach((position, index) => {
-        chestLoader.load(
-            '/src/models/treasure_chest.glb',
-            function (gltf) {
-                const chest = gltf.scene.clone();
-                chest.position.copy(position);
-                chest.scale.set(1.0, 1.0, 1.0); // Scale up the chest to 3x bigger (was 0.5, now 1.5)
-                
-                // Rotate the right chest (index 1) to face away from the wall
-                if (index === 1) { // Right chest (bottom-right corner)
-                    chest.rotation.y = Math.PI; // Rotate 180 degrees to face away from wall
-                }
-                if (index === 3) { // Right chest (bottom-right corner)
-                    chest.rotation.y = Math.PI; // Rotate 180 degrees to face away from wall
-                }
-                
-                // Enable shadows
-                chest.traverse(function (object) {
-                    if (object.isMesh) {
-                        object.castShadow = true;
-                        object.receiveShadow = true;
+    const chestPromises = chestPositions.map((position, index) => {
+        return new Promise(resolve => {
+            chestLoader.load(
+                '/src/models/treasure_chest.glb',
+                function (gltf) {
+                    const chest = gltf.scene.clone();
+                    chest.position.copy(position);
+                    chest.scale.set(1.0, 1.0, 1.0);
+                    
+                    if (index === 1 || index === 3) {
+                        chest.rotation.y = Math.PI;
                     }
-                });
-                
-                chest.name = `treasure_chest_${index}`;
-                scene.add(chest);
-                
-                // Create collision box for the chest
-                const chestCollisionBox = new THREE.Mesh(
-                    new THREE.BoxGeometry(2, 2, 2), // Collision box size
-                    new THREE.MeshBasicMaterial({ visible: false }) // Invisible collision mesh
-                );
-                chestCollisionBox.position.copy(position);
-                chestCollisionBox.position.y = 1; // Center the collision box vertically
-                chestCollisionBox.name = `chest_collision_${index}`;
-                chestCollisionBox.geometry.computeBoundsTree(); // Enable BVH for collision detection
-                scene.add(chestCollisionBox);
-                
-                // Add to collidables array for player and enemy collision detection
-                collidables.push(chestCollisionBox);
-                
-                console.log(`Treasure chest ${index + 1} added at position:`, position);
-            },
-            function (progress) {
-                console.log('Loading treasure chest progress:', (progress.loaded / progress.total * 100) + '%');
-            },
-            function (error) {
-                console.error('Error loading treasure chest:', error);
-            }
-        );
+                    
+                    chest.traverse(function (object) {
+                        if (object.isMesh) {
+                            object.castShadow = true;
+                            object.receiveShadow = true;
+                        }
+                    });
+                    
+                    chest.name = `treasure_chest_${index}`;
+                    scene.add(chest);
+                    
+                    const chestCollisionBox = new THREE.Mesh(
+                        new THREE.BoxGeometry(2, 2, 2),
+                        new THREE.MeshBasicMaterial({ visible: false })
+                    );
+                    chestCollisionBox.position.copy(position);
+                    chestCollisionBox.position.y = 1;
+                    chestCollisionBox.name = `chest_collision_${index}`;
+                    chestCollisionBox.geometry.computeBoundsTree();
+                    scene.add(chestCollisionBox);
+                    
+                    collidables.push(chestCollisionBox);
+                    
+                    console.log(`Treasure chest ${index + 1} added at position:`, position);
+                    updateLoader();
+                    resolve();
+                },
+                function (progress) {
+                    console.log('Loading treasure chest progress:', (progress.loaded / progress.total * 100) + '%');
+                },
+                function (error) {
+                    console.error('Error loading treasure chest:', error);
+                    resolve(); // Still resolve to avoid blocking the Promise.all
+                }
+            );
+        });
     });
+
+    await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, ...chestPromises]);
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {
