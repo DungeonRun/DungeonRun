@@ -105,10 +105,10 @@ export async function loadDemoLevel({
     const playerSpawn = new THREE.Vector3(0, 3, 0);
 
     const enemyConfigs = [
-        { pos: new THREE.Vector3(0, 1, -11), type: "mutant" },
-        { pos: new THREE.Vector3(3, 1, -12), type: "mutant" },
-        { pos: new THREE.Vector3(-3, 1, -8), type: "scaryMonster" },
-        { pos: new THREE.Vector3(1, 1, -8), type: "monsterEye" }
+        { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
+        { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(-3, 1, -8), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(1, 1, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" }
     ];
 
     const chestPositions = [
