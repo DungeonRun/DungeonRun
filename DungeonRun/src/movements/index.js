@@ -15,7 +15,7 @@ import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 
 // Scene setup
 const scene = new THREE.Scene();
-scene.background = new THREE.Color(0xa8def0);
+scene.background = new THREE.Color(0x000000);
 
 let isGameOver = false;
 let keyAnimator = null;
