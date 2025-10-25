@@ -210,8 +210,8 @@ function swordAttack() {
     const hitbox = new THREE.Box3().setFromCenterAndSize(hitboxCenter, hitboxSize);
 
     enemies.forEach(enemy => {
-        if (!enemy.model) return;
-        const enemyBox = new THREE.Box3().setFromObject(enemy.model);
+        if (!enemy.enemyModel) return;
+        const enemyBox = new THREE.Box3().setFromObject(enemy.enemyModel);
         if (hitbox.intersectsBox(enemyBox)) {
             enemy.health = Math.max(0, enemy.health - 25);
         }
@@ -264,7 +264,7 @@ function animate() {
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         if (enemy.health <= 0) {
-            scene.remove(enemy.model);
+            scene.remove(enemy.enemyModel);
             if (enemy.healthBar) enemy.healthBar.remove();
             if (enemy.debugHelper) {
                 scene.remove(enemy.debugHelper);
@@ -346,7 +346,7 @@ function updateDebugHelpers() {
     debugHelpers.push(playerHelper);
 
     enemies.forEach(enemy => {
-        const box = new THREE.Box3().setFromObject(enemy.model);
+        const box = new THREE.Box3().setFromObject(enemy.enemyModel);
         const helper = new THREE.Box3Helper(box, 0xff0000);
         scene.add(helper);
         debugHelpers.push(helper);

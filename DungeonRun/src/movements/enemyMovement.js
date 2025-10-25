@@ -17,6 +17,7 @@ export class EnemyMovement {
 
     // Core enemy state
     this.enemyModel = null;
+    this.health = 30;
     this.mixer = null;
     this.animationsMap = new Map();
     this.currentAction = null;
@@ -27,6 +28,7 @@ export class EnemyMovement {
     this.raycaster = new THREE.Raycaster();
     this.spotlight = null;
     this.player = null;
+    this.healthBar = null;
 
     // Debug
     this.debug = false;

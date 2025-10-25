@@ -193,7 +193,7 @@ export async function loadDemoLevel({
                     */
 
                     //  Enemy health bar   Niel please fix
-                    const bar = new EnemyHealthBar(enemyModel, { maxHealth: 100 });
+                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
                     enemy.healthBar = bar;
                     enemyHealthBars.push(bar);
 
