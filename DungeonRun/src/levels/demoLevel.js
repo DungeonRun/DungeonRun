@@ -7,8 +7,6 @@ import { CharacterControls } from '../movements/characterControls.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { EnemyHealthBar } from '../view/enemyHealthBar.js';
 
-
-
 export async function loadDemoLevel({
     scene,
     renderer,
@@ -22,8 +20,8 @@ export async function loadDemoLevel({
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
-    // Lighting
-    scene.add(new THREE.AmbientLight(0xffffff, 0. ));
+    // 🌤 Ambient and Directional Lighting
+    scene.add(new THREE.AmbientLight(0xffffff, 0.3));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
     dirLight.position.set(-60, 100, -10);
     dirLight.castShadow = true;
@@ -37,7 +35,7 @@ export async function loadDemoLevel({
     dirLight.shadow.mapSize.height = 4096;
     scene.add(dirLight);
 
-    // Floor
+    // 🏜️ Floor
     const textureLoader = new THREE.TextureLoader();
     const [sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion] = await Promise.all([
         textureLoader.loadAsync('/sand/Sand 002_COLOR.jpg'),
@@ -45,6 +43,7 @@ export async function loadDemoLevel({
         textureLoader.loadAsync('/sand/Sand 002_DISP.jpg'),
         textureLoader.loadAsync('/sand/Sand 002_OCC.jpg')
     ]);
+
     const WIDTH = 80, LENGTH = 80;
     const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 100, 100);
     const material = new THREE.MeshStandardMaterial({
@@ -55,22 +54,23 @@ export async function loadDemoLevel({
         aoMap: sandAmbientOcclusion,
         roughness: 0.7,
         metalness: 0.0,
-        color: 0x000000, //tint
+        color: 0x000000,
         emissive: 0x332200,
         emissiveIntensity: 0.1
     });
+
     [material.map, material.normalMap, material.displacementMap, material.aoMap].forEach(map => {
         map.wrapS = map.wrapT = THREE.RepeatWrapping;
         map.repeat.set(8, 8);
         map.anisotropy = renderer.capabilities.getMaxAnisotropy();
     });
+
     const floor = new THREE.Mesh(geometry, material);
     floor.receiveShadow = true;
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
-    // Room Cube
-    //ALLLL of this is placeholder for room model geometry.
+    //  Room Cube
     const size = 30;
     const roomGeometry = new THREE.BoxGeometry(size, size, size);
     const roomMaterial = new THREE.MeshStandardMaterial({
@@ -81,30 +81,20 @@ export async function loadDemoLevel({
     room.position.y = size / 2 - 0.05;
     room.receiveShadow = true;
     scene.add(room);
-    // Assuming 'size' is the length of the cube's sides and 'room' is your cube mesh
-    const half = size / 2;
-    const wallThickness = 0.2; // Thin wall
 
+    const half = size / 2;
+    const wallThickness = 0.2;
     const wallPlanes = [
-        // +X wall (right)
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
-        // -X wall (left)
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
-        // +Z wall (back)
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
-        // -Z wall (front)
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
-        // Floor (optional)
-        // new THREE.Mesh(new THREE.BoxGeometry(size, wallThickness, size), new THREE.MeshBasicMaterial({ visible: false })),
-        // Ceiling (optional)
-        // new THREE.Mesh(new THREE.BoxGeometry(size, wallThickness, size), new THREE.MeshBasicMaterial({ visible: false })),
+        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })), // +X
+        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })), // -X
+        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })), // +Z
+        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false }))  // -Z
     ];
 
-    // Position the walls
-    wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z); // +X
-    wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z); // -X
-    wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half); // +Z
-    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half); // -Z
+    wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z);
+    wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z);
+    wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half);
+    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);
 
     wallPlanes.forEach(wall => {
         wall.geometry.computeBoundsTree();
@@ -115,10 +105,10 @@ export async function loadDemoLevel({
     const playerSpawn = new THREE.Vector3(0, 3, 0);
 
     const enemyConfigs = [
-        { pos: new THREE.Vector3(0, 1, -11), type: "mutant" },
-        { pos: new THREE.Vector3(3, 1, -12), type: "mutant" },
-        { pos: new THREE.Vector3(-3, 1, -8), type: "scaryMonster" },
-        { pos: new THREE.Vector3(1, 1, -8), type: "monsterEye" }
+        { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
+        { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(-3, 1, -8), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(1, 1, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" }
     ];
 
     const chestPositions = [
@@ -134,11 +124,11 @@ export async function loadDemoLevel({
         if (loader) loader.updateProgress((++completedSteps / totalSteps) * 100);
     }
 
-    // Player
+    //  Player
     let model; // playerModel, refactor
     const playerLoadPromise = new Promise(resolve => {
         new GLTFLoader().load(
-            '/src/models/Soldier.glb',
+            '/src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
                 model.traverse(function (object) {
@@ -155,8 +145,6 @@ export async function loadDemoLevel({
 
                 scene.add(model);
 
-
-
                 const gltfAnimations = gltf.animations;
                 const mixer = new THREE.AnimationMixer(model);
                 const animationsMap = new Map();
@@ -165,7 +153,7 @@ export async function loadDemoLevel({
                 });
 
                 const thirdPersonCamera = new ThirdPersonCamera({
-                    camera: camera, 
+                    camera: camera,
                     target: model,
                     scene: scene
                 });
@@ -185,16 +173,16 @@ export async function loadDemoLevel({
     const enemiesLoadPromise = playerLoadPromise.then(async (playerData) => {
         for (const cfg of enemyConfigs) {
             await new Promise(resolve => {
-                const enemy = new EnemyMovement(scene, model, cfg.pos, cfg.type, (enemyModel) => {
+                const enemy = new EnemyMovement(scene, cfg.modelPath, cfg.pos, cfg.type, (enemyModel) => {
                     //lighting effect
                     const enemyLight = new THREE.PointLight(0xff0000, 1, 4); // Red light with 5 unit radius
                     enemyLight.position.set(0, 0, 0); // Position above enemy center
                     enemyModel.add(enemyLight);
-                    
-                    // Add light glow effect
+
+                    // Optional glow effect (commented)
                     /*
                     const lightGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-                    const lightMaterial = new THREE.MeshBasicMaterial({ 
+                    const lightMaterial = new THREE.MeshBasicMaterial({
                         color: 0xff0000,
                         transparent: true,
                         opacity: 0.6
@@ -204,27 +192,29 @@ export async function loadDemoLevel({
                     enemyModel.add(lightGlow);
                     */
 
-                    const bar = new EnemyHealthBar(enemyModel, { maxHealth: enemy.health });
-                    enemy.healthBar = bar; // Link bar to enemy
+                    //  Enemy health bar   Niel please fix
+                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
+                    enemy.healthBar = bar;
                     enemyHealthBars.push(bar);
 
                     updateLoader();
                     resolve();
                 }, collidables);
+
                 enemies.push(enemy);
             });
         };
         if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
     });
 
-    // Key
+    //  Key
     const keyLoadPromise = addGlowingKey(scene).then(({ animator, key }) => {
         if (onKeyLoaded) onKeyLoaded({ animator, key });
         updateLoader();
         return { animator, key };
     });
 
-    // Treasure Chests 
+    //  Treasure Chests 
     const chestLoader = new GLTFLoader();
     const chestPromises = chestPositions.map((position, index) => {
         return new Promise(resolve => {
@@ -280,10 +270,7 @@ export async function loadDemoLevel({
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {
-    // Create a geometry bounding box helper mesh for intersection test
     const geometry = mesh.geometry;
-    if (!geometry.boundsTree) return false; // BVH not built
-
-    // Use BVH's intersectsBox method
+    if (!geometry.boundsTree) return false;
     return geometry.boundsTree.intersectsBox(box, mesh.matrixWorld);
 }

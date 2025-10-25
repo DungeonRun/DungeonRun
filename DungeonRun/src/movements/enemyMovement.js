@@ -3,365 +3,341 @@ import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 import { PhysicsController } from './physics.js';
+import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
 
+/**
+ * EnemyMovement Class
+ * Handles loading, scaling, movement, animations, and attack logic for enemies.
+ * Supports Boss, Goblin, and Vampire types with different behaviors.
+ */
 export class EnemyMovement {
-    constructor(scene, player, startPosition = new THREE.Vector3(0, 1, 0), type = "mutant", onModelLoaded, collidables = []) {
-        this.raycaster = new THREE.Raycaster();
-        this.scene = scene;
-        this.enemyModel = null;
-        this.spotLight = null;
-        this.player = player;
-        this.lag = 0.05;
-        this.startPosition = startPosition;
-        this.type = type;
-        this.groundOffset = 0;
-        this.health = 30;
-        this.healthBar = null;
-        this.collidables = collidables;
+  constructor(scene, modelPath, position, type, onModelLoaded, collidableObjects = []) {
+    this.scene = scene;
+    this.modelPath = modelPath;
+    this.position = position;
+    this.type = type;
+    this.onModelLoaded = onModelLoaded;
+    this.collidableObjects = collidableObjects;
 
-        // Physics controller will be initialized after model loads
-        this.physics = null;
+    // Core enemy state
+    this.enemyModel = null;
+    this.health = 30;
+    this.mixer = null;
+    this.animationsMap = new Map();
+    this.currentAction = null;
+    this.animationActions = [];
 
-        this.attackCooldown = 1.3;
-        this.lastAttackTime = 1;
+    // Movement & environment helpers
+    this.groundOffset = 0.05; // keeps enemy slightly above ground
+    this.raycaster = new THREE.Raycaster();
+    this.spotlight = null;
+    this.player = null;
+    this.healthBar = null;
+
+    // Physics controller will be initialized after model loads
+    this.physics = null;
+
+    // Debug
+    this.debug = false;
+
+    // Initialize type-specific behavior
+    this.setBehaviorByType();
+
+    // Load enemy model
+    this.loadModel(this.modelPath);
+  }
+
+  /**
+   * Defines per-enemy-type attributes.
+   */
+  setBehaviorByType() {
+    switch (this.type.toLowerCase()) {
+      case "boss":
+        this.speed = 0.015;
+        this.detectionRange = 18;
+        this.attackRange = 3;
+        this.attackCooldown = 3;
+        this.scale = 1; // Boss should look big
+        this.groundOffset = 0.2;
+        break;
+      case "goblin":
+        this.speed = 0.03;
+        this.detectionRange = 12;
+        this.attackRange = 2;
+        this.attackCooldown = 1.5;
+        this.scale = 0.8; // Slightly smaller for goblin
+        this.groundOffset = 0.1;
+        break;
+      case "vampire":
+        this.speed = 0.045;
+        this.detectionRange = 10;
         this.attackRange = 1.5;
-        this.attackDamage = 10;
-
-        this.onModelLoaded = onModelLoaded;
-
-        this.mixer = null;
-        this.animationsMap = new Map();
-        this.currentAction = null;
-        this.isMoving = false;
-        this.bobOffset = 0;
-        this.bobSpeed = 5;
-
-        if (this.type === "mutant") {
-            this.loadMutant();
-        } else if (this.type === "scaryMonster") {
-            this.loadScaryMonster();
-        } else if (this.type === "monsterEye") {
-            this.loadMonsterEye();
-        }
+        this.attackCooldown = 1.2;
+        this.scale = 0.9; // Taller, faster model
+        this.groundOffset = 0.15;
+        break;
+      default:
+        this.speed = 0.02;
+        this.detectionRange = 10;
+        this.attackRange = 2;
+        this.attackCooldown = 2;
+        this.scale = 1;
+        this.groundOffset = 0.2;
+        break;
     }
+    this.lastAttackTime = 0;
+  }
 
-    loadMutant() {
-        const loader = new FBXLoader();
-        loader.load(
-            '/src/models/Mutant/mutant.fbx',
-            (fbx) => {
-                fbx.scale.set(0.01, 0.01, 0.01);
-                fbx.position.copy(this.startPosition);
-                fbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
+  /**
+   * Loads GLTF enemy model and sets up animations.
+   */
+  loadModel(url) {
+    const loader = new GLTFLoader();
+    loader.load(
+      url,
+      (gltf) => {
+        this.enemyModel = gltf.scene || gltf.scenes[0];
+        this.enemyModel.position.copy(this.position);
+        this.enemyModel.scale.set(this.scale, this.scale, this.scale);
+        this.enemyModel.name = `${this.type.toLowerCase()}_enemy`;
 
-                this.enemyModel = fbx;
-                this.groundOffset = 1;
-                this.scene.add(this.enemyModel);
+        // Compute bounding box to adjust model origin
+        const box = new THREE.Box3().setFromObject(this.enemyModel);
+        const size = new THREE.Vector3();
+        box.getSize(size);
+        const center = new THREE.Vector3();
+        box.getCenter(center);
+        // Adjust model to align base with ground
+        this.enemyModel.position.y -= center.y - size.y / 2;
+        this.enemyModel.position.y += this.groundOffset;
 
-                // Initialize physics after model is loaded
-                this.physics = new PhysicsController(this.enemyModel, this.scene, this.groundOffset);
+        // Add to scene
+        this.scene.add(this.enemyModel);
 
-                if (typeof this.onModelLoaded === 'function') {
-                    this.onModelLoaded(this.enemyModel);
-                }
+        //this.groundOffset = 0;
+        this.physics = new PhysicsController(this.enemyModel, this.scene, this.groundOffset);
 
-                this.mixer = new THREE.AnimationMixer(fbx);
-                if (fbx.animations.length > 0) {
-                    console.log(`Mutant has ${fbx.animations.length} animations`);
-                    fbx.animations.forEach((clip, index) => {
-                        const action = this.mixer.clipAction(clip);
-                        this.animationsMap.set(index, action);
-                        console.log(`Mutant animation ${index}: ${clip.name}, duration: ${clip.duration}s`);
-                    });
-                    this.currentAction = this.animationsMap.get(0);
-                    if (this.currentAction) {
-                        this.currentAction.setLoop(THREE.LoopRepeat);
-                        this.currentAction.timeScale = 1.0;
-                        this.currentAction.play();
-                    }
-                }
-
-                this.initSpotlight();
-            },
-            (xhr) => console.log(`Mutant ${(xhr.loaded / xhr.total) * 100}% loaded`),
-            (err) => console.error('Error loading Mutant:', err)
-        );
-    }
-
-    loadScaryMonster() {
-        const loader = new FBXLoader();
-        const textureLoader = new THREE.TextureLoader();
-
-        const diffuse = textureLoader.load('/src/textures/scaryMonster/parasiteZombie_body_diffuse.png');
-        const normal = textureLoader.load('/src/textures/scaryMonster/parasiteZombie_normal.png');
-        const specular = textureLoader.load('/src/textures/scaryMonster/parasiteZombie_specular.png');
-
-        loader.load(
-            '/src/models/scaryMonster/Horror_Tale_3_Tom.fbx',
-            (fbx) => {
-                fbx.scale.set(0.01, 0.01, 0.01);
-                fbx.position.copy(this.startPosition);
-
-                fbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.material = new THREE.MeshPhongMaterial({
-                            map: diffuse,
-                            normalMap: normal,
-                            specularMap: specular
-                        });
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-                    }
-                });
-
-                this.enemyModel = fbx;
-                this.groundOffset = 0;
-                this.scene.add(this.enemyModel);
-
-                // Initialize physics
-                this.physics = new PhysicsController(this.enemyModel, this.scene, this.groundOffset);
-
-                if (typeof this.onModelLoaded === 'function') {
-                    this.onModelLoaded(this.enemyModel);
-                }
-
-                this.mixer = new THREE.AnimationMixer(fbx);
-                if (fbx.animations.length > 0) {
-                    console.log(`ScaryMonster has ${fbx.animations.length} animations`);
-                    fbx.animations.forEach((clip, index) => {
-                        const action = this.mixer.clipAction(clip);
-                        this.animationsMap.set(index, action);
-                        console.log(`ScaryMonster animation ${index}: ${clip.name}, duration: ${clip.duration}s`);
-                    });
-                    this.currentAction = this.animationsMap.get(0);
-                    if (this.currentAction) {
-                        this.currentAction.setLoop(THREE.LoopRepeat);
-                        this.currentAction.timeScale = 1.0;
-                        this.currentAction.play();
-                    }
-                }
-
-                this.initSpotlight();
-            },
-            (xhr) => console.log(`ScaryMonster ${(xhr.loaded / xhr.total) * 100}% loaded`),
-            (err) => console.error('Error loading ScaryMonster:', err)
-        );
-    }
-
-    loadMonsterEye() {
-        const loader = new FBXLoader();
-        loader.load(
-            '/src/models/monsterEye/monster_eye1.fbx',
-            (fbx) => {
-                fbx.scale.set(0.05, 0.05, 0.05);
-                fbx.position.copy(this.startPosition);
-
-                fbx.traverse((child) => {
-                    if (child.isMesh) {
-                        child.castShadow = true;
-                        child.receiveShadow = true;
-
-                        const textureLoader = new THREE.TextureLoader();
-                        const baseColor = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Basecolor.png');
-                        const normalMap = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Normal.png');
-                        const metalnessMap = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Metallic.png');
-                        const roughnessMap = textureLoader.load('/src/textures/monsterEye/Ip_eye_lambert1_Roughness.png');
-
-                        child.material = new THREE.MeshStandardMaterial({
-                            map: baseColor,
-                            normalMap: normalMap,
-                            metalnessMap: metalnessMap,
-                            roughnessMap: roughnessMap
-                        });
-                    }
-                });
-
-                this.enemyModel = fbx;
-                this.groundOffset = 0;
-                this.scene.add(this.enemyModel);
-
-                // Initialize physics
-                this.physics = new PhysicsController(this.enemyModel, this.scene, this.groundOffset);
-
-                if (typeof this.onModelLoaded === 'function') {
-                    this.onModelLoaded(this.enemyModel);
-                }
-
-                this.mixer = new THREE.AnimationMixer(fbx);
-                if (fbx.animations.length > 0) {
-                    console.log(`MonsterEye has ${fbx.animations.length} animations`);
-                    fbx.animations.forEach((clip, index) => {
-                        const action = this.mixer.clipAction(clip);
-                        this.animationsMap.set(index, action);
-                        console.log(`MonsterEye animation ${index}: ${clip.name}, duration: ${clip.duration}s`);
-                    });
-                    this.currentAction = this.animationsMap.get(0);
-                    if (this.currentAction) {
-                        this.currentAction.setLoop(THREE.LoopRepeat);
-                        this.currentAction.timeScale = 1.0;
-                        this.currentAction.play();
-                    }
-                }
-
-                this.initSpotlight();
-            },
-            (xhr) => console.log(`Monster Eye ${(xhr.loaded / xhr.total) * 100}% loaded`),
-            (err) => console.error('Error loading Monster Eye:', err)
-        );
-    }
-
-    initSpotlight() {
-        if (!this.enemyModel) return;
-        this.spotLight = new THREE.SpotLight(0xffaa00, 2, 20, Math.PI / 6, 0.3, 1);
-        this.spotLight.position.set(
-            this.enemyModel.position.x,
-            this.enemyModel.position.y + 2,
-            this.enemyModel.position.z
-        );
-        this.spotLight.target.position.copy(this.player.position);
-        this.scene.add(this.spotLight);
-        this.scene.add(this.spotLight.target);
-    }
-
-    switchAnimation(animationIndex) {
-        if (!this.animationsMap.has(animationIndex)) return;
-        
-        const newAction = this.animationsMap.get(animationIndex);
-        if (newAction === this.currentAction) return;
-        
-        if (this.currentAction) {
-            this.currentAction.fadeOut(0.2);
-        }
-        
-        newAction.reset().fadeIn(0.2).play();
-        this.currentAction = newAction;
-    }
-
-    checkForTarget() {
-        if (!this.player || !this.enemyModel) return;
-
-        const rayOrigin = new THREE.Vector3(
-            this.enemyModel.position.x,
-            this.enemyModel.position.y + 1,
-            this.enemyModel.position.z
-        );
-        const directionToPlayer = this.player.position.clone().sub(rayOrigin).normalize();
-        this.raycaster.set(rayOrigin, directionToPlayer);
-
-        const objectsToTest = this.scene.children.filter(obj => obj !== this.enemyModel);
-        const intersects = this.raycaster.intersectObjects(objectsToTest, true);
-
-        const distance = this.enemyModel.position.distanceTo(this.player.position);
-
-        let shouldMove = false;
-
-        if (intersects.length > 0) {
-            const hit = intersects[0].object;
-            if (hit.name === 'player' || hit.parent?.name === 'player') {
-                if (distance > 2) {
-                    shouldMove = true;
-                    const angle = Math.atan2(
-                        this.player.position.x - this.enemyModel.position.x,
-                        this.player.position.z - this.enemyModel.position.z
-                    );
-                    this.enemyModel.rotation.y = angle;
-                    
-                    // Only move on X and Z, Y is handled by physics
-                    const moveVec = directionToPlayer.clone();
-                    moveVec.y = 0;
-                    moveVec.normalize();
-                    moveVec.multiplyScalar(this.lag);
-                    
-                    this.enemyModel.position.x += moveVec.x;
-                    this.enemyModel.position.z += moveVec.z;
-                }
-            }
-        } else {
-            if (distance > 2) {
-                shouldMove = true;
-                const angle = Math.atan2(
-                    this.player.position.x - this.enemyModel.position.x,
-                    this.player.position.z - this.enemyModel.position.z
-                );
-                this.enemyModel.rotation.y = angle;
-                
-                // Only move on X and Z, Y is handled by physics
-                const moveVec = directionToPlayer.clone();
-                moveVec.y = 0;
-                moveVec.normalize();
-                moveVec.multiplyScalar(this.lag);
-                
-                this.enemyModel.position.x += moveVec.x;
-                this.enemyModel.position.z += moveVec.z;
-            }
+        // Set up animations
+        this.mixer = new THREE.AnimationMixer(this.enemyModel);
+        if (gltf.animations && gltf.animations.length > 0) {
+          gltf.animations.forEach((clip) => {
+            const action = this.mixer.clipAction(clip);
+            this.animationsMap.set(clip.name.toLowerCase(), action);
+            this.animationActions.push(action);
+          });
         }
 
-        if (shouldMove && !this.isMoving) {
-            this.switchAnimation(1);
-            this.isMoving = true;
-        } else if (!shouldMove && this.isMoving) {
-            this.switchAnimation(0);
-            this.isMoving = false;
+        // Default to idle animation
+        this.playAnimation("idle");
+
+        // Add light following enemy
+        this.initSpotlight();
+
+        // Adjust to ground height
+        //this.updateGroundPosition();
+
+        // Callback
+        if (typeof this.onModelLoaded === "function") {
+          this.onModelLoaded(this.enemyModel);
         }
 
-        if (this.spotLight) {
-            this.spotLight.position.set(
-                this.enemyModel.position.x,
-                this.enemyModel.position.y + 2,
-                this.enemyModel.position.z
-            );
-            this.spotLight.target.position.copy(this.player.position);
-        }
+        if (this.debug) console.log(`${this.type} model loaded successfully`);
+      },
+      undefined,
+      (error) => console.error("Error loading enemy model:", error)
+    );
+  }
+
+  /**
+   * Smooth animation switching.
+   */
+  playAnimation(nameOrIndex) {
+    if (!this.mixer || this.animationActions.length === 0) return;
+
+    let action = null;
+    if (typeof nameOrIndex === "number") {
+      action = this.animationActions[nameOrIndex];
+    } else if (typeof nameOrIndex === "string") {
+      action = this.animationsMap.get(nameOrIndex.toLowerCase());
+      // Fallback to first available animation if specific one is missing
+      if (!action && nameOrIndex.toLowerCase() === "walk" && this.animationsMap.size > 0) {
+        action = this.animationsMap.get([...this.animationsMap.keys()][0]);
+      }
+      if (!action && nameOrIndex.toLowerCase() === "attack" && this.animationsMap.size > 0) {
+        action = this.animationsMap.get([...this.animationsMap.keys()][0]);
+      }
     }
 
-    willCollide(nextPosition) {
-        const box = new THREE.Box3().setFromObject(this.model);
-        const delta = nextPosition.clone().sub(this.model.position);
-        box.translate(delta);
+    if (action && action !== this.currentAction) {
+      if (this.currentAction) this.currentAction.fadeOut(0.3);
+      this.currentAction = action;
+      this.currentAction.reset().fadeIn(0.3).play();
+    }
+  }
 
-        for (const mesh of this.collidables) {
-            if (boxIntersectsMeshBVH(box, mesh)) {
-                return true;
-            }
-        }
-        return false;
+  /**
+   * Creates a spotlight that follows the enemy.
+   */
+  initSpotlight() {
+    this.spotlight = new THREE.SpotLight(0xffffff, 1.5, 15, Math.PI / 4, 0.5);
+    this.spotlight.position.set(0, 3, 0);
+    this.scene.add(this.spotlight);
+
+    const target = new THREE.Object3D();
+    this.scene.add(target);
+    this.spotlight.target = target;
+  }
+
+  /**
+   * Keeps enemy attached to the ground.
+   */
+ /*updateGroundPosition() {
+  if (!this.enemyModel) return;
+
+  // Ray starts slightly above the model’s feet
+  const origin = this.enemyModel.position.clone().add(new THREE.Vector3(0, 2, 0));
+  this.raycaster.set(origin, new THREE.Vector3(0, -1, 0));
+  this.raycaster.far = 10;
+
+  // Only include ground-like meshes
+  const groundMeshes = [];
+  this.scene.traverse((obj) => {
+    if (
+      obj.isMesh &&
+      obj.visible &&
+      !obj.name.toLowerCase().includes("enemy") &&
+      !obj.name.toLowerCase().includes("player") &&
+      !obj.isLight &&
+      obj.name.toLowerCase().includes("ground") // Only ground meshes
+    ) {
+      groundMeshes.push(obj);
+    }
+  });
+
+  const intersects = this.raycaster.intersectObjects(groundMeshes, true);
+
+  if (intersects.length > 0) {
+    const groundY = intersects[0].point.y + this.groundOffset;
+
+    // Smoothly interpolate toward ground level (no flicker)
+    this.enemyModel.position.y = THREE.MathUtils.lerp(
+      this.enemyModel.position.y,
+      groundY,
+      0.25
+    );
+  } else {
+    // Fall back to cached ground height if available
+    if (this.cachedGroundY !== undefined) {
+      this.enemyModel.position.y = THREE.MathUtils.lerp(
+        this.enemyModel.position.y,
+        this.cachedGroundY + this.groundOffset,
+        0.25
+      );
+    } else {
+      // Store initial ground height
+      this.cachedGroundY = this.enemyModel.position.y;
+    }
+  }
+}*/
+
+  /**
+   * Handles movement and attack logic toward player.
+   */
+  moveTowardsPlayer(delta, characterControls) {
+    if (!this.enemyModel || !this.player) return;
+
+    const direction = new THREE.Vector3();
+    direction.subVectors(this.player.position, this.enemyModel.position);
+    const distance = direction.length();
+
+    // Attack if close enough
+    if (distance < this.attackRange) {
+      this.attackPlayer(characterControls);
+      return;
     }
 
-    update(delta, characterControls) {
-        // Update physics (gravity) for enemy
-        if (this.physics) {
-            this.physics.update(delta);
-        }
-        
-        this.checkForTarget();
-        if (this.mixer) this.mixer.update(delta);
+    // Move if within detection range
+    if (distance < this.detectionRange) {
+      direction.normalize();
+      const step = direction.multiplyScalar(this.speed);
+      this.enemyModel.position.add(step);
 
-        // Attack logic
-        if (this.enemyModel && characterControls) {
-            const dist = this.enemyModel.position.distanceTo(characterControls.model.position);
-            if (dist < this.attackRange) {
-                const now = performance.now() / 1000;
-                if (now - this.lastAttackTime > this.attackCooldown) {
-                    characterControls.health = Math.max(0, characterControls.health - this.attackDamage);
-                    this.lastAttackTime = now;
-                    const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(this.enemyModel.quaternion);
-                    const attackCenter = this.enemyModel.position.clone().add(forward.multiplyScalar(1.5));
-                    const attackBox = new THREE.Box3().setFromCenterAndSize(attackCenter, new THREE.Vector3(1, 2, 1));
-                    const playerBox = new THREE.Box3().setFromObject(characterControls.model);
-                    if (attackBox.intersectsBox(playerBox)) {
-                        characterControls.health = Math.max(0, characterControls.health - this.attackDamage);
-                    }
-                }
-            }
-        }
+      // Rotate to face player
+      const targetRotation = Math.atan2(
+        this.player.position.x - this.enemyModel.position.x,
+        this.player.position.z - this.enemyModel.position.z
+      );
+      this.enemyModel.rotation.y = targetRotation;
+
+      //old code movement to be refactored
+      /*
+      const rayOrigin = new THREE.Vector3(
+          this.enemyModel.position.x,
+          this.enemyModel.position.y + 1,
+          this.enemyModel.position.z
+      );
+      const directionToPlayer = this.player.position.clone().sub(rayOrigin).normalize();
+      const moveVec = directionToPlayer.clone();
+      moveVec.y = 0;
+      moveVec.normalize();
+      moveVec.multiplyScalar(this.lag);
+      
+      this.enemyModel.position.x += moveVec.x;
+      this.enemyModel.position.z += moveVec.z;
+      */
+
+      // Switch to walk animation
+      this.playAnimation("walk");
+    } else {
+      this.playAnimation("idle");
     }
 
-    get model() {
-        return this.enemyModel;
+    //this.updateGroundPosition();
+  }
+
+  /**
+   * Plays attack animation and reduces player health.
+   */
+  attackPlayer(characterControls) {
+    const now = performance.now() / 1000;
+    if (now - this.lastAttackTime < this.attackCooldown) return;
+
+    this.playAnimation("attack");
+    this.lastAttackTime = now;
+
+    if (characterControls) { //fixed the issue but it required boding the code to take in characterControls for this method, moveTowardsPlayer(), and update()
+      characterControls.health = Math.max(characterControls.health - 2, 0);
     }
+
+    if (this.debug) console.log(`${this.type} attacks the player!`);
+  }
+
+  /**
+   * Called each frame.
+   */
+  update(delta, characterControls) {
+    if (!this.enemyModel) return;
+
+    if (this.physics) {
+        this.physics.update(delta);
+    }
+
+    // Find player if not set
+    if (!this.player) {
+      this.player = this.scene.getObjectByName("player");
+    }
+
+    // Perform movement and logic
+    this.moveTowardsPlayer(delta, characterControls);
+
+    // Update animations
+    if (this.mixer) this.mixer.update(delta);
+
+    // Update spotlight position
+    if (this.spotlight && this.enemyModel) {
+      this.spotlight.position.copy(this.enemyModel.position).add(new THREE.Vector3(0, 3, 0));
+      this.spotlight.target.position.copy(this.enemyModel.position);
+      this.spotlight.target.updateMatrixWorld();
+    }
+  }
 }

@@ -1,5 +1,3 @@
-// index.js - main file for rendering scene essentially
-
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { CharacterControls } from './characterControls.js';
@@ -13,26 +11,24 @@ import { Inventory } from '../view/inventory.js';
 import { ProjectileManager } from './projectiles.js';
 import { GameOverUI } from '../view/gameOverUI.js';
 import { Loader } from '../load/load.js';
+import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0xa8def0);
 
 let isGameOver = false;
-
 let keyAnimator = null;
-let keyObject = null; 
-let isKeyGrabbed = false; 
-
+let keyObject = null;
+let isKeyGrabbed = false;
 let debugMode = false;
 let debugHelpers = [];
 
-
-//invetory
+// Inventory
 let inventory;
 
-//health
-let playerHealthBar; 
+// Health
+let playerHealthBar;
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -40,8 +36,6 @@ camera.position.set(0, 5, 5);
 
 // Renderer setup
 const canvas = document.querySelector('#gameCanvas');
-
-
 if (!canvas) {
     console.error('Canvas with id="gameCanvas" not found!');
     throw new Error('Canvas element not found');
@@ -57,7 +51,7 @@ let thirdPersonCamera;
 let enemies = [];
 
 // Game Over UI
-let gameOverUI; 
+let gameOverUI;
 
 //loading
 let loader;
@@ -65,7 +59,7 @@ let loader;
 //controls
 let keyDisplayQueue;
 
-//projectiles
+// Projectiles
 const projectileManager = new ProjectileManager(scene, camera, enemies);
 let projectiles = [];
 
@@ -73,7 +67,6 @@ function clearScene() {
     if (thirdPersonCamera) {
         thirdPersonCamera.cleanup();
     }
-
     while (scene.children.length > 0) {
         scene.remove(scene.children[0]);
     }
@@ -108,7 +101,7 @@ async function loadLevel(levelLoader) {
             characterControls = cc;
             thirdPersonCamera = cam;
         },
-        onEnemiesLoaded: ({ enemies: enemyArr}) => {
+        onEnemiesLoaded: ({ enemies: enemyArr }) => {
             enemies = enemyArr;
         },
         onKeyLoaded: ({ animator, key }) => {
@@ -133,10 +126,11 @@ const keysPressed = {};
 document.addEventListener('keydown', (event) => {
     if (loader && loader.isLoading) return; //to prevent controls during loading
 
-    keyDisplayQueue.down(event.key);
-    keysPressed[event.key.toLowerCase()] = true;
+    keysPressed[event.code] = true;
+    keyDisplayQueue.down(event.code); // Use event.code for consistency
 
-    if (event.key.toLowerCase() === 'e' && keyObject && !isKeyGrabbed && characterControls) {
+    // Key pickup changed to R as the animation is triggered
+    if (event.code === 'KeyR' && keyObject && !isKeyGrabbed && characterControls) {
         const playerPos = characterControls.model.position;
         const keyPos = keyObject.position;
         const distance = playerPos.distanceTo(keyPos);
@@ -145,102 +139,87 @@ document.addEventListener('keydown', (event) => {
         }
     }
 
-    //redundancy
-    if (event.key === '1') inventory.selected = 0;
-    if (event.key === '2') inventory.selected = 1;
+    // Inventory controls
+    if (event.code === 'Digit1') inventory.selected = 0;
+    if (event.code === 'Digit2') inventory.selected = 1;
+    if (event.code === 'KeyQ') inventory.switchItem();
 
-    if (event.key === 'q') inventory.switchItem();
-
-    if (event.key === 'e') {
+    // Player attack (only when not jumping or other actions)
+    if (event.code === 'KeyE' && characterControls) {
         playerAttack();
     }
-    
+
     if (event.code === 'Space' && characterControls) {
         characterControls.jump();
     }
 
-    if (event.key.toLowerCase() === 'h') { // Press H to damage player
-        if (playerHealthBar) {
-            playerHealthBar.setHealth(playerHealthBar.health - 10);
+    // Damage player
+    if (event.code === 'KeyH' && playerHealthBar) {
+        playerHealthBar.setHealth(playerHealthBar.health - 10);
+        if (characterControls) {
+            characterControls.health = playerHealthBar.health;
         }
     }
 
-    //enables debug mode (shows )
-    if (event.key.toLowerCase() === 'p') {
+    // Debug mode
+    if (event.code === 'KeyP') {
         debugMode = !debugMode;
         updateDebugHelpers();
     }
-
-
 }, false);
 
 document.addEventListener('keyup', (event) => {
      if (loader && loader.isLoading) return;
 
-    keyDisplayQueue.up(event.key);
-    keysPressed[event.key.toLowerCase()] = false;
+    keysPressed[event.code] = false;
+    keyDisplayQueue.up(event.code);
 }, false);
 
 
 function grabKey() {
-    if (!keyObject || isKeyGrabbed) return;
-    
+    if (!keyObject || isKeyGrabbed || !characterControls) return;
     isKeyGrabbed = true;
     keyObject.userData.isGrabbed = true;
     keyObject.visible = false;
     keyDisplayQueue.updateKeyStatus('yes');
-    keyDisplayQueue.up('e');
+    keyDisplayQueue.up('KeyE');
+    alert("Key grabbed!");
+    characterControls.playPickup(); // Trigger pickup animation
     console.log('Key grabbed! Status updated to yes.');
 }
 
 let spellCooldownEnd = 5000;
 function playerAttack() {
+    if (!characterControls || !characterControls.model) return;
     if (inventory.getSelected() === 'sword') {
         swordAttack();
+        characterControls.playSword(); // Trigger sword animation
     } else if (inventory.getSelected() === 'spell') {
-        // Only fire if cooldown allows
         if (performance.now() > spellCooldownEnd) {
             const origin = characterControls.model.position.clone();
             origin.y += 1.2;
             const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(characterControls.model.quaternion);
             projectileManager.fireSpell(origin, direction);
-            spellCooldownEnd = performance.now() + 5000; // 1 second cooling down
+            spellCooldownEnd = performance.now() + 5000;
         }
     }
 }
 
 function swordAttack() {
     if (!characterControls || !characterControls.model) return;
-
-    //hitbox code
     const playerPos = characterControls.model.position.clone();
     const forward = new THREE.Vector3(0, 0.5, -0.33).applyQuaternion(characterControls.model.quaternion);
-    const hitboxCenter = playerPos.clone().add(forward.multiplyScalar(2)); // 2 units in front
-    const hitboxSize = new THREE.Vector3(1.5, 2, 1.4); // width, height, depth
-
+    const hitboxCenter = playerPos.clone().add(forward.multiplyScalar(2));
+    const hitboxSize = new THREE.Vector3(1.5, 2, 1.4);
     const hitbox = new THREE.Box3().setFromCenterAndSize(hitboxCenter, hitboxSize);
 
-     //visualiation
-    /*const helper = new THREE.Box3Helper(hitbox, 0xff0000);
-    scene.add(helper);
-    setTimeout(() => scene.remove(helper), 100);
-    */
-    
-    //enemy intersection, will need timeout delays for animations.
     enemies.forEach(enemy => {
-        if (!enemy.model) return;
-        const enemyBox = new THREE.Box3().setFromObject(enemy.model);
+        if (!enemy.enemyModel) return;
+        const enemyBox = new THREE.Box3().setFromObject(enemy.enemyModel);
         if (hitbox.intersectsBox(enemyBox)) {
             enemy.health = Math.max(0, enemy.health - 25);
         }
     });
-}
-
-function fireSpell() {
-    if (inventory.getCooldown(1) > performance.now()) return;
-    inventory.setCooldown(1, performance.now() + 3000); // 3s cooldown
-    // Create projectile
-    ProjectileManager.fireSpell();
 }
 
 // Animation loop
@@ -256,6 +235,26 @@ function animate() {
 
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keysPressed);
+
+        // Check for chest interaction (for Open animation)
+        if (keysPressed['KeyT'] && !isKeyGrabbed) {
+            const playerBox = new THREE.Box3().setFromObject(characterControls.model);
+            const nearChest = characterControls.collidables.some(mesh => {
+                if (mesh.name.includes('chest_collision')) {
+                    return boxIntersectsMeshBVH(playerBox, mesh);
+                }
+                return false;
+            });
+            if (nearChest) {
+                characterControls.playOpen();
+            }
+        }
+
+        // Death animation on health <= 0
+        if (characterControls.health <= 0 && !isGameOver) {
+            characterControls.playDeath();
+            isGameOver = true; // Prevent repeated triggers
+        }
     }
 
     enemies.forEach(enemy => {
@@ -266,11 +265,10 @@ function animate() {
         }
     });
 
-    //would use an forEach or other more intelligent system, but splicing needs to occur to eliminate the bug where the bounding boxes are still there to damage you after death
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         if (enemy.health <= 0) {
-            scene.remove(enemy.model);
+            scene.remove(enemy.enemyModel);
             if (enemy.healthBar) enemy.healthBar.remove();
             if (enemy.debugHelper) {
                 scene.remove(enemy.debugHelper);
@@ -279,7 +277,6 @@ function animate() {
             enemies.splice(i, 1);
         }
     }
-            
 
     if (keyAnimator) keyAnimator();
 
@@ -287,29 +284,23 @@ function animate() {
         const playerPos = characterControls.model.position;
         const distance = playerPos.distanceTo(keyObject.position);
         if (distance < 3) {
-            keyDisplayQueue.down('e');
+            keyDisplayQueue.down('KeyR');
             if (distance < 3 && distance > 2) {
-                console.log('Press E to grab the key!');
+                console.log('Press R to grab the key!');
             }
         } else {
-            keyDisplayQueue.up('e');
+            keyDisplayQueue.up('KeyR');
         }
     } else {
-        keyDisplayQueue.up('e');
+        keyDisplayQueue.up('KeyR');
     }
 
-    
-
-
-    //for projectiles
     projectileManager.enemies = enemies;
     projectileManager.update(mixerUpdateDelta);
 
     if (thirdPersonCamera) {
         thirdPersonCamera.Update(mixerUpdateDelta);
     }
-
-    
 
     if (playerHealthBar && characterControls) {
         playerHealthBar.setHealth(characterControls.health);
@@ -319,20 +310,14 @@ function animate() {
         if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
             document.exitPointerLock();
         }
-        
         const cameraPosition = camera.position.clone();
         const cameraRotation = camera.rotation.clone();
-        
-        //remove player
         if (characterControls.model) {
             scene.remove(characterControls.model);
         }
-        
         gameOverUI.show(() => {
-            // Retry callback
             loadLevel(loadDemoLevel);
         });
-        
         characterControls = null;
     }
 
@@ -341,44 +326,36 @@ function animate() {
     renderer.render(scene, camera);
     
     requestAnimationFrame(animate);
-    
 
-    //example for switching levels ! this should hopefully be changed
     if (isKeyGrabbed && !window._levelSwitched) {
         window._levelSwitched = true;
         setTimeout(() => {
             switchLevel();
         }, 1000);
     }
-    
 }
 
 function switchLevel() {
-    // For now, reload demo level (replace with another loader for more levels)
     loadLevel(loadDemoLevel);
     window._levelSwitched = false;
 }
 
-//for viewing hitboxes
 function updateDebugHelpers() {
     debugHelpers.forEach(h => scene.remove(h));
     debugHelpers = [];
     if (!debugMode) return;
-    // Player
     const playerBox = new THREE.Box3().setFromObject(characterControls.model);
     const playerHelper = new THREE.Box3Helper(playerBox, 0x00ff00);
     scene.add(playerHelper);
     debugHelpers.push(playerHelper);
 
-    // Enemies
     enemies.forEach(enemy => {
-        const box = new THREE.Box3().setFromObject(enemy.model);
+        const box = new THREE.Box3().setFromObject(enemy.enemyModel);
         const helper = new THREE.Box3Helper(box, 0xff0000);
         scene.add(helper);
         debugHelpers.push(helper);
     });
 
-    // Projectiles
     projectiles.forEach(spell => {
         const box = new THREE.Box3().setFromObject(spell);
         const helper = new THREE.Box3Helper(box, 0xaa00ff);

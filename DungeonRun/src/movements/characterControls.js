@@ -30,10 +30,78 @@ class CharacterControls {
                 value.play();
             }
         });
+
+        // Handle non-looping animation completion
+        this.mixer.addEventListener('finished', (e) => {
+            if (['Jump', 'Punch', 'Sword', 'Push', 'Open', 'Pickup', 'Death'].includes(this.currentAction)) {
+                this.playIdle();
+            }
+        });
+    }
+
+    // Animation Functions
+    playAnimation(animationName, loop = true) {
+        if (!this.animationsMap.has(animationName)) {
+            console.warn(`Animation ${animationName} not found`);
+            return;
+        }
+
+        if (this.currentAction !== animationName) {
+            const toPlay = this.animationsMap.get(animationName);
+            const current = this.animationsMap.get(this.currentAction);
+
+            if (current) current.fadeOut(this.fadeDuration);
+            if (toPlay) {
+                toPlay.reset().fadeIn(this.fadeDuration).play();
+                toPlay.loop = loop ? THREE.LoopRepeat : THREE.LoopOnce;
+            }
+
+            this.currentAction = animationName;
+        }
+    }
+
+    playIdle() {
+        this.playAnimation('Idle', true);
+    }
+
+    playWalk() {
+        this.playAnimation('Walk', true);
+    }
+
+    playRun() {
+        this.playAnimation('Run', true);
+    }
+
+    playJump() {
+        this.playAnimation('Jump', false);
+    }
+
+    playOpen() {
+        this.playAnimation('Open', false);
+    }
+
+    playPickup() {
+        this.playAnimation('Pickup', false);
+    }
+
+    playPush() {
+        this.playAnimation('Push', false);
+    }
+
+    playPunch() {
+        this.playAnimation('Punch', false);
+    }
+
+    playSword() {
+        this.playAnimation('Sword', false);
+    }
+
+    playDeath() {
+        this.playAnimation('Death', false);
     }
 
     switchRunToggle() {
-        this.toggleRun = !this.toggleRun;
+        this.toggleRun = !this.toggleRun; // unused function now
     }
 
     willCollide(nextPosition) {
@@ -59,23 +127,41 @@ class CharacterControls {
         this.physics.update(delta);
 
         const directionPressed = DIRECTIONS.some(key => keysPressed[key] === true);
-        let play = '';
-        if (directionPressed && keysPressed['shift']) {
-            play = 'Run';
+
+        // Handle animation triggers
+        if (keysPressed['Space']) {
+            this.playJump();
+            // Add vertical movement for jump
+            if (this.currentAction === 'Jump') {
+                const action = this.animationsMap.get('Jump');
+                if (action && action.isRunning()) {
+                    this.model.position.y += 2 * delta; // Adjust height/speed as needed
+                    if (this.model.position.y > 2) this.model.position.y = 2;
+                }
+            }
+        } else if (keysPressed['KeyF']) {
+            this.playPunch();
+        } else if (keysPressed['KeyE']) {
+            this.playSword();
+        } else if (keysPressed['KeyR']) {
+            this.playPickup();
+        } else if (keysPressed['KeyT']) {
+            this.playOpen();
+        } else if (keysPressed['KeyG']) {
+            this.playPush();
+        } else if (keysPressed['KeyX']) {  //x key is for death but this has to be automated when they die
+            this.playDeath();
+        } else if (directionPressed && (keysPressed['ShiftLeft'] || keysPressed['ShiftRight'])) {
+            this.playRun();
         } else if (directionPressed) {
-            play = 'Walk';
+            this.playWalk();
         } else {
-            play = 'Idle';
-        }
-
-        if (this.currentAction !== play) {
-            const toPlay = this.animationsMap.get(play);
-            const current = this.animationsMap.get(this.currentAction);
-
-            if (current) current.fadeOut(this.fadeDuration);
-            if (toPlay) toPlay.reset().fadeIn(this.fadeDuration).play();
-
-            this.currentAction = play;
+            this.playIdle();
+            // Reset vertical position when not jumping
+            if (this.model.position.y > 0) {
+                this.model.position.y -= 2 * delta; // Fall back to ground
+                if (this.model.position.y < 0) this.model.position.y = 0;
+            }
         }
 
         this.mixer.update(delta);
@@ -111,7 +197,7 @@ class CharacterControls {
             if (moveDirection.length() > 0) {
                 moveDirection.normalize();
                 
-                const angle = Math.atan2(moveDirection.x, moveDirection.z) + Math.PI;
+                const angle = Math.atan2(moveDirection.x, moveDirection.z); //Niel: Pi got added to this but this might be causing issues down the line. Just noting
                 this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
                 
                 this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);

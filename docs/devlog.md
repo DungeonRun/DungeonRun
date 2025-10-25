@@ -15,6 +15,9 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 - 
 - **Additional Info**: sourced code from yt :https://youtu.be/C3s0UHpwlf8?si=TtpLCdtNmBIQl0qE for credits.
 - Used chat for fine tuning the codes for raycasting movement and all . yt:https://youtu.be/Mpd1MFr8HoE?si=AQsYCRLaewkZcedp
+- I have implemented key-based animation triggers where pressing Space makes the avatar jump, F performs a punch, E swings a sword, R triggers a pickup action, T plays the open animation, G performs a push, and X plays the death animation (which will later be automated upon death).
+- I have deleted the previous models for enemies and added new ones
+- Enemy avatars can follow you and attack you
 
 ### 2. Niel Grobler
 - **Features Developed**: 

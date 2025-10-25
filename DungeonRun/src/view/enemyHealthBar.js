@@ -1,21 +1,22 @@
 import * as THREE from 'three';
 
 export class EnemyHealthBar {
-    constructor(parent, options = {}) {
+    constructor(parent, scene, options = {}) {
         this.maxHealth = options.maxHealth || 100;
         this.health = this.maxHealth;
         this.parent = parent;
+        this.scene = scene;
 
         // Bar dimensions
-        this.width = options.width || 50.2;
-        this.height = options.height || 4;
+        this.width = options.width || 1.2;
+        this.height = options.height || 0.1;
 
         // Compute bounding box height
         const bbox = new THREE.Box3().setFromObject(parent);
         const bboxSize = new THREE.Vector3();
         bbox.getSize(bboxSize);
         // Place bar above the model
-        this.offsetY = bbox.max.y - parent.position.y + (options.offsetY || this.height * 2);
+        this.offsetY = bbox.max.y - parent.position.y + (this.height * 0.2);
 
 
         // Create background (grey)
@@ -35,11 +36,12 @@ export class EnemyHealthBar {
         this.group.add(this.bgMesh);
         this.group.add(this.fgMesh);
 
-        // Position above parent
-        this.group.position.set(0, this.offsetY, 0);
+        // Position above parent but add to scene, not parent
+        this.group.position.copy(parent.position);
+        this.group.position.y += this.offsetY;
 
-        // Attach to parent
-        this.parent.add(this.group);
+        // Add to scene instead of parent to avoid being part of hitbox
+        this.scene.add(this.group);
     }
 
     setHealth(value) {
@@ -53,6 +55,12 @@ export class EnemyHealthBar {
     }
 
     update(camera) {
+        if (!this.group || !this.parent) return;
+        
+        // Update position to follow parent
+        this.group.position.copy(this.parent.position);
+        this.group.position.y += this.offsetY;
+
         // Always face the camera
         this.group.quaternion.copy(camera.quaternion);
     }
