@@ -10,6 +10,7 @@ import { loadDemoLevel } from '../levels/demoLevel.js';
 import { Inventory } from '../view/inventory.js';
 import { ProjectileManager } from './projectiles.js';
 import { GameOverUI } from '../view/gameOverUI.js';
+import { Loader } from '../load/load.js';
 import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 import { loadLevel2 } from '../levels/level2.js';
 import { loadLevel3 } from '../levels/level3.js';
@@ -55,6 +56,12 @@ let enemies = [];
 // Game Over UI
 let gameOverUI;
 
+//loading
+let loader;
+
+//controls
+let keyDisplayQueue;
+
 // Projectiles
 const projectileManager = new ProjectileManager(scene, camera, enemies);
 let projectiles = [];
@@ -84,14 +91,15 @@ function clearScene() {
 
 // Level loading
 async function loadLevel(levelLoader) {
+    loader = new Loader(scene, camera, renderer); //update parameters?
+    loader.show()
+
     clearScene();
-    playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
-    gameOverUI = new GameOverUI();
-    inventory = new Inventory();
     await levelLoader({
         scene,
         renderer,
         camera,
+        loader,
         onPlayerLoaded: ({ model, mixer, animationsMap, characterControls: cc, thirdPersonCamera: cam }) => {
             characterControls = cc;
             thirdPersonCamera = cam;
@@ -104,13 +112,23 @@ async function loadLevel(levelLoader) {
             keyObject = key;
         }
     });
+    loader.hide();
+
+    //show UI
+    playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
+    gameOverUI = new GameOverUI();
+    inventory = new Inventory();
+    keyDisplayQueue = new KeyDisplay();
+
+    
 }
 
 // Keyboard controls
 const keysPressed = {};
-const keyDisplayQueue = new KeyDisplay();
 
 document.addEventListener('keydown', (event) => {
+    if (loader && loader.isLoading) return; //to prevent controls during loading
+
     keysPressed[event.code] = true;
     keyDisplayQueue.down(event.code); // Use event.code for consistency
 
@@ -150,9 +168,12 @@ document.addEventListener('keydown', (event) => {
 }, false);
 
 document.addEventListener('keyup', (event) => {
+     if (loader && loader.isLoading) return;
+
     keysPressed[event.code] = false;
     keyDisplayQueue.up(event.code);
 }, false);
+
 
 function grabKey() {
     if (!keyObject || isKeyGrabbed || !characterControls) return;
@@ -195,8 +216,8 @@ function swordAttack() {
     const hitbox = new THREE.Box3().setFromCenterAndSize(hitboxCenter, hitboxSize);
 
     enemies.forEach(enemy => {
-        if (!enemy.model) return;
-        const enemyBox = new THREE.Box3().setFromObject(enemy.model);
+        if (!enemy.enemyModel) return;
+        const enemyBox = new THREE.Box3().setFromObject(enemy.enemyModel);
         if (hitbox.intersectsBox(enemyBox)) {
             enemy.health = Math.max(0, enemy.health - 25);
         }
@@ -207,6 +228,13 @@ function swordAttack() {
 const clock = new THREE.Clock();
 function animate() {
     const mixerUpdateDelta = clock.getDelta();
+
+    if (loader && loader.isLoading) {
+        loader.render();
+        requestAnimationFrame(animate);
+        return;
+    }
+
     if (characterControls) {
         characterControls.update(mixerUpdateDelta, keysPressed);
 
@@ -242,7 +270,7 @@ function animate() {
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         if (enemy.health <= 0) {
-            scene.remove(enemy.model);
+            scene.remove(enemy.enemyModel);
             if (enemy.healthBar) enemy.healthBar.remove();
             if (enemy.debugHelper) {
                 scene.remove(enemy.debugHelper);
@@ -298,6 +326,7 @@ function animate() {
     if (debugMode) updateDebugHelpers();
 
     renderer.render(scene, camera);
+    
     requestAnimationFrame(animate);
 
     if (isKeyGrabbed && !window._levelSwitched) {
@@ -383,7 +412,7 @@ function updateDebugHelpers() {
     debugHelpers.push(playerHelper);
 
     enemies.forEach(enemy => {
-        const box = new THREE.Box3().setFromObject(enemy.model);
+        const box = new THREE.Box3().setFromObject(enemy.enemyModel);
         const helper = new THREE.Box3Helper(box, 0xff0000);
         scene.add(helper);
         debugHelpers.push(helper);

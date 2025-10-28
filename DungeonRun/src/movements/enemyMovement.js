@@ -17,6 +17,7 @@ export class EnemyMovement {
 
     // Core enemy state
     this.enemyModel = null;
+    this.health = 30;
     this.mixer = null;
     this.animationsMap = new Map();
     this.currentAction = null;
@@ -27,6 +28,7 @@ export class EnemyMovement {
     this.raycaster = new THREE.Raycaster();
     this.spotlight = null;
     this.player = null;
+    this.healthBar = null;
 
     // Debug
     this.debug = false;
@@ -231,7 +233,7 @@ export class EnemyMovement {
   /**
    * Handles movement and attack logic toward player.
    */
-  moveTowardsPlayer(delta) {
+  moveTowardsPlayer(delta, characterControls) {
     if (!this.enemyModel || !this.player) return;
 
     const direction = new THREE.Vector3();
@@ -240,7 +242,7 @@ export class EnemyMovement {
 
     // Attack if close enough
     if (distance < this.attackRange) {
-      this.attackPlayer();
+      this.attackPlayer(characterControls);
       return;
     }
 
@@ -269,15 +271,15 @@ export class EnemyMovement {
   /**
    * Plays attack animation and reduces player health.
    */
-  attackPlayer() {
+  attackPlayer(characterControls) {
     const now = performance.now() / 1000;
     if (now - this.lastAttackTime < this.attackCooldown) return;
 
     this.playAnimation("attack");
     this.lastAttackTime = now;
 
-    if (this.player && this.player.userData.health !== undefined) {
-      this.player.userData.health = Math.max(this.player.userData.health - 10, 0);
+    if (characterControls) { //fixed the issue but it required boding the code to take in characterControls for this method, moveTowardsPlayer(), and update()
+      characterControls.health = Math.max(characterControls.health - 2, 0);
     }
 
     if (this.debug) console.log(`${this.type} attacks the player!`);
@@ -286,7 +288,7 @@ export class EnemyMovement {
   /**
    * Called each frame.
    */
-  update(delta) {
+  update(delta, characterControls) {
     if (!this.enemyModel) return;
 
     // Find player if not set
@@ -295,7 +297,7 @@ export class EnemyMovement {
     }
 
     // Perform movement and logic
-    this.moveTowardsPlayer(delta);
+    this.moveTowardsPlayer(delta, characterControls);
 
     // Update animations
     if (this.mixer) this.mixer.update(delta);
