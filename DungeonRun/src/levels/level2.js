@@ -7,7 +7,7 @@ import { CharacterControls } from '../movements/characterControls.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { EnemyHealthBar } from '../view/enemyHealthBar.js';
 
-export async function loadDemoLevel({
+export async function loadLevel2({
     scene,
     renderer,
     camera,
@@ -138,14 +138,16 @@ export async function loadDemoLevel({
 
             if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
 
-            //  Enemies
+            //  Enemies add more per level
             const enemies = [];
             const enemyHealthBars = [];
             const enemyConfigs = [
                 { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
                 { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
-                { pos: new THREE.Vector3(-3, 1, -8), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
-                { pos: new THREE.Vector3(1, 1, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" }
+                { pos: new THREE.Vector3(-2, 4, -8), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+                { pos: new THREE.Vector3(1, 6, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
+                { pos: new THREE.Vector3(2, 1, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
+                { pos: new THREE.Vector3(3, 7, -8), type: "boss", modelPath: "/src/animations/enemies/boss.glb" }
             ];
 
             enemyConfigs.forEach(cfg => {
@@ -188,7 +190,7 @@ export async function loadDemoLevel({
 
     //  Treasure Chests
     const chestLoader = new GLTFLoader();
-    const chestPositions = [
+    const chestPositions = [  //alter these for level2
         new THREE.Vector3(-12, 0, -12),
         new THREE.Vector3(12, 0, -12),
         new THREE.Vector3(-12, 0, 12),

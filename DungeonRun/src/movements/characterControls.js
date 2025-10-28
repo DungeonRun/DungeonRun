@@ -132,7 +132,12 @@ class CharacterControls {
         } else if (keysPressed['KeyE']) {
             this.playSword();
         } else if (keysPressed['KeyR']) {
-            this.playPickup();
+
+
+             if (this.currentAction !== 'Pickup') {
+                this.playPickup();
+            }
+            
         } else if (keysPressed['KeyT']) {
             this.playOpen();
         } else if (keysPressed['KeyG']) {
@@ -222,6 +227,22 @@ class CharacterControls {
 
         return directionOffset;
     }
+    resetAnimation() {
+    if (!this.mixer || !this.animationsMap) return;
+
+    // Stop all active animations
+    this.mixer.stopAllAction();
+
+    // Reset to idle if available
+    const idle = this.animationsMap.get('Idle');
+    if (idle) {
+        idle.reset().fadeIn(this.fadeDuration).play();
+        this.currentAction = 'Idle';
+    }
+
+    console.log("CharacterControls: Animation reset to Idle"); //so that animations on previous level stop
+}
+
 }
 
 export { CharacterControls };
