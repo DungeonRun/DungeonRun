@@ -4,7 +4,7 @@ import { CharacterControls } from './characterControls.js';
 import { KeyDisplay } from './utils.js';
 import { PlayerHealthBarUI } from '../view/playerHealthBarUI.js';
 import { EnemyMovement } from './enemyMovement.js';
-import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
+import { CameraManager } from '../view/cameraManager.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { loadDemoLevel } from '../levels/demoLevel.js';
 import { Inventory } from '../view/inventory.js';
@@ -50,7 +50,7 @@ renderer.shadowMap.enabled = true;
 
 // Level state
 let characterControls;
-let thirdPersonCamera;
+let cameraManager;
 let enemies = [];
 
 // Game Over UI
@@ -67,8 +67,8 @@ const projectileManager = new ProjectileManager(scene, camera, enemies);
 let projectiles = [];
 
 function clearScene() {
-    if (thirdPersonCamera) {
-        thirdPersonCamera.cleanup();
+    if (cameraManager) {
+        cameraManager.cleanup();
     }
     while (scene.children.length > 0) {
         scene.remove(scene.children[0]);
@@ -77,7 +77,7 @@ function clearScene() {
     keyObject = null;
     isKeyGrabbed = false;
     characterControls = null;
-    thirdPersonCamera = null;
+    cameraManager = null;
     enemies = [];
     enemies.forEach(enemy => enemy.healthBar && enemy.healthBar.remove());
     if (playerHealthBar) {
@@ -100,9 +100,9 @@ async function loadLevel(levelLoader) {
         renderer,
         camera,
         loader,
-        onPlayerLoaded: ({ model, mixer, animationsMap, characterControls: cc, thirdPersonCamera: cam }) => {
+        onPlayerLoaded: ({ model, mixer, animationsMap, characterControls: cc, cameraManager: cam }) => {
             characterControls = cc;
-            thirdPersonCamera = cam;
+            cameraManager = cam;
         },
         onEnemiesLoaded: ({ enemies: enemyArr }) => {
             enemies = enemyArr;
@@ -300,8 +300,8 @@ function animate() {
     projectileManager.enemies = enemies;
     projectileManager.update(mixerUpdateDelta);
 
-    if (thirdPersonCamera) {
-        thirdPersonCamera.Update(mixerUpdateDelta);
+    if (cameraManager) {
+        cameraManager.Update(mixerUpdateDelta);
     }
 
     if (playerHealthBar && characterControls) {
@@ -309,7 +309,7 @@ function animate() {
     }
 
     if (characterControls && characterControls.health <= 0 && !gameOverUI.isGameOver) {
-        if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
+        if (cameraManager && cameraManager.IsMouseLocked()) {
             document.exitPointerLock();
         }
         const cameraPosition = camera.position.clone();

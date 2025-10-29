@@ -3,11 +3,11 @@ import { UP, DOWN, LEFT, RIGHT, DIRECTIONS } from './utils.js';
 import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 
 class CharacterControls {
-    constructor(model, mixer, animationsMap, thirdPersonCamera, currentAction, collidables = []) {
+    constructor(model, mixer, animationsMap, cameraManager, currentAction, collidables = []) {
         this.model = model;
         this.mixer = mixer;
         this.animationsMap = animationsMap || new Map();
-        this.thirdPersonCamera = thirdPersonCamera;
+        this.cameraController = cameraManager; // Now can be ThirdPersonCamera, FirstPersonCamera, or CameraManager
         this.currentAction = currentAction;
         this.toggleRun = true;
         this.walkDirection = new THREE.Vector3();
@@ -161,7 +161,15 @@ class CharacterControls {
 
         if (this.currentAction === 'Run' || this.currentAction === 'Walk') {
             let moveDirection = new THREE.Vector3(0, 0, 0);
-            const cameraWorldPos = this.thirdPersonCamera._camera.getWorldPosition(new THREE.Vector3());
+
+            // Get camera reference - handle both direct camera and CameraManager
+            let camera = this.cameraController._camera || this.cameraController.camera;
+            if (this.cameraController.GetActiveCamera) {
+                // Using CameraManager
+                camera = this.cameraController.GetActiveCamera()._camera;
+            }
+
+            const cameraWorldPos = camera.getWorldPosition(new THREE.Vector3());
             const playerPos = this.model.position.clone();
             const cameraForward = new THREE.Vector3();
             cameraForward.subVectors(playerPos, cameraWorldPos);
@@ -186,9 +194,16 @@ class CharacterControls {
 
             if (moveDirection.length() > 0) {
                 moveDirection.normalize();
-                const angle = Math.atan2(moveDirection.x, moveDirection.z);
-                this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
-                this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);
+
+                // Check if using first person camera
+                const isFirstPerson = this.cameraController.GetMode && this.cameraController.GetMode() === 'first';
+                
+                if (!isFirstPerson) {
+                    // Third person: rotate player to face movement direction
+                    const angle = Math.atan2(moveDirection.x, moveDirection.z);
+                    this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
+                    this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);
+                }
 
                 const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
                 const moveX = moveDirection.x * velocity * delta;

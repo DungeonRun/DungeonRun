@@ -2,7 +2,7 @@ import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { EnemyMovement } from '../movements/enemyMovement.js';
-import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
+import { CameraManager } from '../view/cameraManager.js';
 import { CharacterControls } from '../movements/characterControls.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { EnemyHealthBar } from '../view/enemyHealthBar.js';
@@ -128,15 +128,15 @@ export async function loadLevel3({
                 animationsMap.set(a.name, mixer.clipAction(a));
             });
 
-            const thirdPersonCamera = new ThirdPersonCamera({
+            const cameraManager = new CameraManager({
                 camera: camera,
                 target: model,
                 scene: scene
             });
 
-            const characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle', collidables);
+            const characterControls = new CharacterControls(model, mixer, animationsMap, cameraManager, 'Idle', collidables);
 
-            if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
+            if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, cameraManager: cameraManager, collidables });
 
             //  Enemies
             const enemies = [];
