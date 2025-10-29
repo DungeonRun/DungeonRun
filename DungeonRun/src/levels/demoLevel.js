@@ -140,7 +140,7 @@ export async function loadDemoLevel({
                 model.name = 'player';
 
                 const playerLight = new THREE.PointLight(0xff7700, 15, 15); 
-                playerLight.position.copy(playerSpawn);
+                playerLight.position.set(0, 0, 0);
                 model.add(playerLight);
 
                 scene.add(model);
@@ -244,7 +244,7 @@ export async function loadDemoLevel({
                     resolve();
                 },
                 function (progress) {
-                    console.log('Loading treasure chest progress:', (progress.loaded / progress.total * 100) + '%');
+                    //console.log('Loading treasure chest progress:', (progress.loaded / progress.total * 100) + '%');
                 },
                 function (error) {
                     console.error('Error loading treasure chest:', error);

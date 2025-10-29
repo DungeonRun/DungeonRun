@@ -1,17 +1,11 @@
 import * as THREE from 'three';
-import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { CharacterControls } from './characterControls.js';
-import { KeyDisplay } from './utils.js';
+import { KeyDisplay } from '../view/keyDisplay.js';
 import { PlayerHealthBarUI } from '../view/playerHealthBarUI.js';
-import { EnemyMovement } from './enemyMovement.js';
-import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
-import { addGlowingKey } from '../keyGlow.js';
-import { loadDemoLevel } from '../levels/demoLevel.js';
 import { Inventory } from '../view/inventory.js';
 import { ProjectileManager } from './projectiles.js';
 import { GameOverUI } from '../view/gameOverUI.js';
 import { Loader } from '../load/load.js';
-import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
+import { loadDemoLevel, boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 import { loadLevel2 } from '../levels/level2.js';
 import { loadLevel3 } from '../levels/level3.js';
 
@@ -60,7 +54,7 @@ let gameOverUI;
 let loader;
 
 //controls
-let keyDisplayQueue;
+let keyDisplay;
 
 // Projectiles
 const projectileManager = new ProjectileManager(scene, camera, enemies);
@@ -80,19 +74,32 @@ function clearScene() {
     thirdPersonCamera = null;
     enemies = [];
     enemies.forEach(enemy => enemy.healthBar && enemy.healthBar.remove());
+    
     if (playerHealthBar) {
         playerHealthBar.remove();
         playerHealthBar = null;
     }
+    
     if (gameOverUI) {
         gameOverUI.remove();
+        gameOverUI = null;
+    }
+
+    if (inventory) {
+        inventory.remove();
+        inventory = null;
+    }
+
+    if (keyDisplay) {
+        keyDisplay.remove();
+        keyDisplay = null;
     }
 }
 
 // Level loading
-async function loadLevel(levelLoader) {
-    loader = new Loader(scene, camera, renderer); //update parameters?
-    loader.show()
+async function loadLevel(levelLoader, levelName = '') {
+    loader = new Loader(scene, camera, renderer, levelName);
+    loader.show();
 
     clearScene();
     await levelLoader({
@@ -118,9 +125,7 @@ async function loadLevel(levelLoader) {
     playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
     gameOverUI = new GameOverUI();
     inventory = new Inventory();
-    keyDisplayQueue = new KeyDisplay();
-
-    
+    keyDisplay = new KeyDisplay();
 }
 
 // Keyboard controls
@@ -130,7 +135,11 @@ document.addEventListener('keydown', (event) => {
     if (loader && loader.isLoading) return; //to prevent controls during loading
 
     keysPressed[event.code] = true;
-    keyDisplayQueue.down(event.code); // Use event.code for consistency
+    
+    // Use the class-based KeyDisplay
+    if (keyDisplay) {
+        keyDisplay.down(event.code);
+    }
 
     // Key pickup changed to R as the animation is triggered
     if (event.code === 'KeyR' && keyObject && !isKeyGrabbed && characterControls) {
@@ -171,18 +180,25 @@ document.addEventListener('keyup', (event) => {
      if (loader && loader.isLoading) return;
 
     keysPressed[event.code] = false;
-    keyDisplayQueue.up(event.code);
+    
+    // Use the class-based KeyDisplay
+    if (keyDisplay) {
+        keyDisplay.up(event.code);
+    }
 }, false);
-
 
 function grabKey() {
     if (!keyObject || isKeyGrabbed || !characterControls) return;
     isKeyGrabbed = true;
     keyObject.userData.isGrabbed = true;
     keyObject.visible = false;
-    keyDisplayQueue.updateKeyStatus('yes');
-    keyDisplayQueue.up('KeyE');
-    alert("Key grabbed!");
+    
+    // Use the class-based KeyDisplay
+    if (keyDisplay) {
+        keyDisplay.updateKeyStatus('yes');
+        keyDisplay.up('KeyR');
+    }
+    
     characterControls.playPickup(); // Trigger pickup animation
 
     //eliminate key animation repeatation
@@ -286,15 +302,21 @@ function animate() {
         const playerPos = characterControls.model.position;
         const distance = playerPos.distanceTo(keyObject.position);
         if (distance < 3) {
-            keyDisplayQueue.down('KeyR');
+            if (keyDisplay) {
+                keyDisplay.down('KeyR');
+            }
             if (distance < 3 && distance > 2) {
                 console.log('Press R to grab the key!');
             }
         } else {
-            keyDisplayQueue.up('KeyR');
+            if (keyDisplay) {
+                keyDisplay.up('KeyR');
+            }
         }
     } else {
-        keyDisplayQueue.up('KeyR');
+        if (keyDisplay) {
+            keyDisplay.up('KeyR');
+        }
     }
 
     projectileManager.enemies = enemies;
@@ -341,66 +363,23 @@ function animate() {
 async function switchLevel() {
     console.log(`Switching from Level ${currentLevel}...`);
 
-    // Create a screen overlay message
-    const transition = document.createElement('div');
-    transition.innerText = `Loading next level...`;
-    Object.assign(transition.style, {
-        position: 'fixed',
-        top: '50%',
-        left: '50%',
-        transform: 'translate(-50%, -50%)',
-        color: '#fff',
-        fontSize: '42px',
-        fontWeight: 'bold',
-        textAlign: 'center',
-        backgroundColor: 'rgba(0, 0, 0, 0.7)',
-        padding: '30px 50px',
-        borderRadius: '15px',
-        zIndex: '9999',
-        opacity: '0',
-        transition: 'opacity 1s ease-in-out',
-    });
-    document.body.appendChild(transition);
-
-    // Fade in
-    setTimeout(() => {
-        transition.style.opacity = '1';
-    }, 50);
-
     // Determine next level
     if (currentLevel === 1) {
         currentLevel = 2;
-        transition.innerText = "Level 2 Loaded";
-        await loadLevel(loadLevel2);
+        loadLevel(loadLevel2, 'LEVEL 2');
     } 
     else if (currentLevel === 2) {
         currentLevel = 3;
-        transition.innerText = "Level 3 Loaded";
-        await loadLevel(loadLevel3);
+        loadLevel(loadLevel3, 'LEVEL 3');
     } 
     else {
         currentLevel = 1;
-        transition.innerText = " Back to Level 1";
-        await loadLevel(loadDemoLevel);
+        loadLevel(loadDemoLevel, 'LEVEL 1');
     }
-
-    // Fade out and remove
-    setTimeout(() => {
-        transition.style.opacity = '0';
-        setTimeout(() => document.body.removeChild(transition), 1000);
-    }, 1500);
 
     console.log(` Now on Level ${currentLevel}`);
     window._levelSwitched = false;
-
-    //animation reset statement
-    if (characterControls) {
-    characterControls.resetAnimation();
 }
-}
-
-
-
 
 function updateDebugHelpers() {
     debugHelpers.forEach(h => scene.remove(h));
@@ -431,9 +410,13 @@ function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    keyDisplayQueue.updatePosition();
+    
+    // Use the class-based KeyDisplay
+    if (keyDisplay) {
+        keyDisplay.updatePosition();
+    }
 }
 window.addEventListener('resize', onWindowResize);
 
-loadLevel(loadDemoLevel);
+loadLevel(loadDemoLevel, 'LEVEL 1');
 animate();

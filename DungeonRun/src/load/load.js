@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 export class Loader {
-    constructor(scene, camera, renderer) {
+    constructor(scene, camera, renderer, headerText = '') {
         this.scene = scene;
         this.camera = camera;
         this.renderer = renderer;
@@ -10,6 +10,7 @@ export class Loader {
         this.frameCounter = 0;
         this.sampleInterval = 150;
         this.lastCaptureFrame = 0;
+        this.headerText = headerText
         
         this.setupLoadingScreen();
         this.setupBlurEffect();
@@ -31,6 +32,17 @@ export class Loader {
         this.loadingScreen.style.color = 'white';
         this.loadingScreen.style.fontFamily = 'Arial, sans-serif';
         this.loadingScreen.style.fontSize = '24px';
+
+        if (this.headerText) {
+            this.loadingHeader = document.createElement('div');
+            this.loadingHeader.textContent = this.headerText;
+            this.loadingHeader.style.marginBottom = '20px';
+            this.loadingHeader.style.fontSize = '36px';
+            this.loadingHeader.style.fontWeight = 'bold';
+            this.loadingHeader.style.textTransform = 'uppercase';
+            this.loadingHeader.style.letterSpacing = '2px';
+            this.loadingScreen.appendChild(this.loadingHeader);
+        }
         
         this.loadingText = document.createElement('div');
         this.loadingText.textContent = 'LOADING';
@@ -350,6 +362,13 @@ export class Loader {
         this.progress = Math.max(0, Math.min(100, percent));
         this.loadingPercentage.textContent = `${Math.round(this.progress)}%`;
         this.progressBar.style.width = `${this.progress}%`;
+    }
+
+    setHeaderText(text) {
+        this.headerText = text;
+        if (this.loadingHeader) {
+            this.loadingHeader.textContent = text;
+        }
     }
 
     show() {

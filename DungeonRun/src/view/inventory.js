@@ -167,4 +167,10 @@ export class Inventory {
   getCooldown(idx) {
     return this.cooldowns[idx];
   }
+
+  remove() {
+        if (this.container && this.container.parentNode) {
+            this.container.parentNode.removeChild(this.container);
+        }
+    }
 }
