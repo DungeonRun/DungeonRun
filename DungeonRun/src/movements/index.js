@@ -12,12 +12,15 @@ import { ProjectileManager } from './projectiles.js';
 import { GameOverUI } from '../view/gameOverUI.js';
 import { Loader } from '../load/load.js';
 import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
+import { loadLevel2 } from '../levels/level2.js';
+import { loadLevel3 } from '../levels/level3.js';
 
 // Scene setup
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x000000);
 
 let isGameOver = false;
+let currentLevel = 1; //implementation for level switching.
 let keyAnimator = null;
 let keyObject = null;
 let isKeyGrabbed = false;
@@ -181,6 +184,9 @@ function grabKey() {
     keyDisplayQueue.up('KeyE');
     alert("Key grabbed!");
     characterControls.playPickup(); // Trigger pickup animation
+
+    //eliminate key animation repeatation
+    keysPressed['KeyR'] = false;
     console.log('Key grabbed! Status updated to yes.');
 }
 
@@ -331,10 +337,70 @@ function animate() {
     }
 }
 
-function switchLevel() {
-    loadLevel(loadDemoLevel);
+//loading of levels implementation
+async function switchLevel() {
+    console.log(`Switching from Level ${currentLevel}...`);
+
+    // Create a screen overlay message
+    const transition = document.createElement('div');
+    transition.innerText = `Loading next level...`;
+    Object.assign(transition.style, {
+        position: 'fixed',
+        top: '50%',
+        left: '50%',
+        transform: 'translate(-50%, -50%)',
+        color: '#fff',
+        fontSize: '42px',
+        fontWeight: 'bold',
+        textAlign: 'center',
+        backgroundColor: 'rgba(0, 0, 0, 0.7)',
+        padding: '30px 50px',
+        borderRadius: '15px',
+        zIndex: '9999',
+        opacity: '0',
+        transition: 'opacity 1s ease-in-out',
+    });
+    document.body.appendChild(transition);
+
+    // Fade in
+    setTimeout(() => {
+        transition.style.opacity = '1';
+    }, 50);
+
+    // Determine next level
+    if (currentLevel === 1) {
+        currentLevel = 2;
+        transition.innerText = "Level 2 Loaded";
+        await loadLevel(loadLevel2);
+    } 
+    else if (currentLevel === 2) {
+        currentLevel = 3;
+        transition.innerText = "Level 3 Loaded";
+        await loadLevel(loadLevel3);
+    } 
+    else {
+        currentLevel = 1;
+        transition.innerText = " Back to Level 1";
+        await loadLevel(loadDemoLevel);
+    }
+
+    // Fade out and remove
+    setTimeout(() => {
+        transition.style.opacity = '0';
+        setTimeout(() => document.body.removeChild(transition), 1000);
+    }, 1500);
+
+    console.log(` Now on Level ${currentLevel}`);
     window._levelSwitched = false;
+
+    //animation reset statement
+    if (characterControls) {
+    characterControls.resetAnimation();
 }
+}
+
+
+
 
 function updateDebugHelpers() {
     debugHelpers.forEach(h => scene.remove(h));
