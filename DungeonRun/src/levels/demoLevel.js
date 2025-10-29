@@ -212,6 +212,41 @@ export async function loadDemoLevel({
         return { animator, key };
     });
 
+    // ===== ARTIFACT LOADING - Load sword and potion models BEFORE chests =====
+    const artifactLoader = new GLTFLoader();
+    const swordPromise = new Promise((resolve) => {
+        artifactLoader.load(
+            '/src/models/artifacts/fantasy_sword_devil_may_cry.glb', 
+            (gltf) => {
+                console.log('Sword model loaded');
+                resolve(gltf.scene);
+            },
+            undefined,
+            (err) => { 
+                console.error('Sword load error:', err); 
+                resolve(null); 
+            }
+        );
+    });
+    
+    const potionPromise = new Promise((resolve) => {
+        artifactLoader.load(
+            '/src/models/artifacts/stylized_low_poly_potion_red.glb',
+            (gltf) => {
+                console.log('Potion model loaded');
+                resolve(gltf.scene);
+            },
+            undefined,
+            (err) => { 
+                console.error('Potion load error:', err); 
+                resolve(null); 
+            }
+        );
+    });
+
+    const [swordModel, potionModel] = await Promise.all([swordPromise, potionPromise]);
+    // ===== END ARTIFACT LOADING =====
+
     //  Treasure Chests 
     const chestLoader = new GLTFLoader();
     const chestPromises = chestPositions.map((position, index) => {
@@ -244,37 +279,50 @@ export async function loadDemoLevel({
                             console.log(`  - ${node.name} (type: ${node.type})`);
                         }
                     });
+                
+
+                    // ===== ARTIFACT PREPARATION - Clone and configure artifact for this chest =====
+                    let artifact = null;
+                    if (index % 2 === 0 && swordModel) {
+                        // Sword for even indices (0, 2)
+                        artifact = swordModel.clone();
+                        artifact.scale.set(0.3, 0.3, 0.3);  // Smaller scale to fit inside
+                        artifact.rotation.set(0, 0, Math.PI / 2); // Rotate to lay flat
+                        console.log(`Chest ${index}: Adding SWORD`);
+                    } else if (index % 2 === 1 && potionModel) {
+                        // Potion for odd indices (1, 3)
+                        artifact = potionModel.clone();
+                        artifact.scale.set(0.08, 0.08, 0.08);  // Smaller scale
+                        artifact.rotation.set(0, 0, 0); // Upright
+                        console.log(`Chest ${index}: Adding POTION`);
+                    }
+
+                    if (artifact) {
+                        artifact.traverse((obj) => {
+                            if (obj.isMesh) {
+                                obj.castShadow = true;
+                                obj.receiveShadow = true;
+                                console.log('Artifact mesh:', obj.name, 'visible:', obj.visible);
+                            }
+                        });
+                        
+                        // Add a bright debug sphere to see where artifact is positioned
+                        const debugSphere = new THREE.Mesh(
+                            new THREE.SphereGeometry(0.2, 8, 8),
+                            new THREE.MeshBasicMaterial({ color: 0xff00ff })
+                        );
+                        artifact.add(debugSphere);
+                    }
+
+                    // ===== END ARTIFACT PREPARATION =====
                     
                     // Register chest with pivot offset
-                    // ADJUST THESE VALUES based on your model:
-                    // Register chest with pivot offset - TEST DIFFERENT VALUES
-                                        // Register chest - TEST THESE OPTIONS
                     const registeredChest = ChestController.registerChest(chest, {
-                        // TEST 1: Y-axis with 111 degrees (remainder of 11111)
                         rotationAxis: 'y',
-                        openAngle: Math.PI /2,  // 111 degrees
+                        openAngle: Math.PI / 2,
                         pivotOffset: new THREE.Vector3(0, 0, 0.5),
-                        duration: 1.2
-                        
-                        // TEST 2: Y-axis with full 11111 degrees (probably too much spinning)
-                        // rotationAxis: 'y',
-                        // openAngle: 11111 * Math.PI / 180,
-                        // pivotOffset: new THREE.Vector3(0, 0, 0.5),
-                        
-                        // TEST 3: Y-axis with 90 degrees
-                        // rotationAxis: 'y',
-                        // openAngle: Math.PI / 2,  // 90 degrees
-                        // pivotOffset: new THREE.Vector3(0, 0, 0.5),
-                        
-                        // TEST 4: Try negative rotation
-                        // rotationAxis: 'y',
-                        // openAngle: -(11111 % 360) * Math.PI / 180,
-                        // pivotOffset: new THREE.Vector3(0, 0, 0.5),
-                        
-                        // TEST 5: Different pivot offset
-                        // rotationAxis: 'y',
-                        // openAngle: (11111 % 360) * Math.PI / 180,
-                        // pivotOffset: new THREE.Vector3(0, 0, -0.5),
+                        duration: 1.2,
+                        artifact: artifact  // ← Pass artifact to ChestController
                     });
                     
                     if (!registeredChest) {
@@ -313,7 +361,7 @@ export async function loadDemoLevel({
 
     await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, ...chestPromises]);
     
-    console.log(`\n✓ Level loaded with ${ChestController.chests.length} chests`);
+    console.log(`\n Level loaded with ${ChestController.chests.length} chests`);
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {

@@ -8,17 +8,10 @@ class Chest {
         this.isOpen = false;
         this.duration = opts.duration ?? 1.2;
 
-        // In Blender: 11111 degrees = 30.86 full rotations + 111 degrees remainder
-        // 111 degrees is approximately 1.937 radians
-        // BUT we need to test if it's the full 11111 degrees or just the remainder
-        const defaultAngle = (11111 % 360) * Math.PI / 180; // 111 degrees in radians
-        
-        // Offset to move pivot point - distance from lid center to hinge
+        const defaultAngle = (11111 % 360) * Math.PI / 180;
         const pivotOffset = opts.pivotOffset ?? new THREE.Vector3(0, 0, 0.5);
-        
-        // Open angle - Y-axis rotation as you specified from Blender
         const openAngle = opts.openAngle ?? defaultAngle;
-        const rotationAxis = opts.rotationAxis ?? 'y'; // Y-axis by default
+        const rotationAxis = opts.rotationAxis ?? 'y';
 
         // Create pivot helpers for each lid
         this.originalLids.forEach((lid, index) => {
@@ -28,7 +21,6 @@ class Chest {
             const originalPosition = lid.position.clone();
             const originalRotation = lid.rotation.clone();
 
-            // Create pivot helper at the hinge point
             const pivotHelper = new THREE.Object3D();
             pivotHelper.name = `pivot_helper_${index}`;
             
@@ -38,11 +30,9 @@ class Chest {
             pivotHelper.position.copy(hingePosition);
             originalParent.add(pivotHelper);
 
-            // Move lid to pivot helper
             originalParent.remove(lid);
             pivotHelper.add(lid);
 
-            // Adjust lid position relative to pivot
             lid.position.set(-pivotOffset.x, -pivotOffset.y, -pivotOffset.z);
             lid.rotation.copy(originalRotation);
 
@@ -71,6 +61,42 @@ class Chest {
         this._t = 0;
         this._from = null;
         this._to = null;
+
+        //  ARTIFACT SETUP 
+        this.artifact = opts.artifact || null;
+        if (this.artifact) {
+            console.log('ARTIFACT SETUP STARTING...');
+            console.log('Artifact exists:', !!this.artifact);
+            console.log('Root exists:', !!root);
+            
+            // Add artifact directly to chest root
+            root.add(this.artifact);
+            console.log('Artifact added to chest root');
+            
+            // ADJUST THESE VALUES TO POSITION ARTIFACT:
+            const artifactY = 0.3;  // ← CHANGE THIS VALUE (try 0.3 to 1.0)
+            this.artifact.position.set(0, artifactY, 0);
+            
+            // Make artifact always visible for testing
+            this.artifact.visible = true;
+            
+            // Force all child meshes to be visible
+            this.artifact.traverse((node) => {
+                if (node.isMesh) {
+                    node.visible = true;
+                    node.frustumCulled = false;
+                    console.log('    Mesh:', node.name, 'Material:', node.material ? 'YES' : 'NO');
+                }
+            });
+            
+            console.log('    Artifact configured:');
+            console.log('    Position:', this.artifact.position.toArray());
+            console.log('    Scale:', this.artifact.scale.toArray());
+            console.log('    Visible:', this.artifact.visible);
+            console.log('    Children count:', this.artifact.children.length);
+        } else {
+            console.log('No artifact provided for this chest');
+        }
     }
 
     toggle() {
@@ -80,6 +106,12 @@ class Chest {
         this._to = this.pivotHelpers.map((p, i) => (
             this.isOpen ? this.open[i].clone() : this.closed[i].clone()
         ));
+        
+        // Keep artifact visible even when closed for debugging
+        if (this.artifact) {
+            console.log(`Artifact visibility: ${this.artifact.visible}`);
+        }
+        
         console.log(`Chest ${this.isOpen ? 'OPENING' : 'CLOSING'}...`);
     }
 
@@ -89,7 +121,6 @@ class Chest {
         this._t += dt;
         const t = Math.min(1, this._t / this.duration);
         
-        // Smooth easing
         const s = t < 0.5 
             ? 4 * t * t * t
             : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -144,7 +175,7 @@ export const ChestController = {
         if (lids.length === 0) {
             root.traverse(node => {
                 if (node.name && /lid/i.test(node.name)) {
-                    console.log(`✓ Found lid part: ${node.name}`);
+                    console.log(`Found lid part: ${node.name}`);
                     lids.push(node);
                 }
             });
@@ -157,7 +188,7 @@ export const ChestController = {
 
         const chest = new Chest(root, lids, opts);
         this.chests.push(chest);
-        console.log(`✓ Registered chest #${this.chests.length} with ${lids.length} lid parts`);
+        console.log(`Registered chest #${this.chests.length} with ${lids.length} lid parts`);
         
         return chest;
     },
