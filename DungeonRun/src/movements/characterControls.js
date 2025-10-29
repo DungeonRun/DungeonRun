@@ -159,22 +159,31 @@ class CharacterControls {
 
         this.mixer.update(delta);
 
-        if (this.currentAction === 'Run' || this.currentAction === 'Walk') {
+            if (this.currentAction === 'Run' || this.currentAction === 'Walk') {
             let moveDirection = new THREE.Vector3(0, 0, 0);
 
             // Get camera reference - handle both direct camera and CameraManager
+            // This `camera` variable is the actual THREE.Camera, used for some calculations below.
             let camera = this.cameraController._camera || this.cameraController.camera;
+            // Also obtain the camera *wrapper* (object that may have Update, hideAvatarForFirstPerson, etc.)
+            let cameraWrapper = this.cameraController;
             if (this.cameraController.GetActiveCamera) {
-                // Using CameraManager
-                camera = this.cameraController.GetActiveCamera()._camera;
+                // Using CameraManager: GetActiveCamera() returns the active camera wrapper
+                cameraWrapper = this.cameraController.GetActiveCamera();
+                camera = cameraWrapper._camera || camera; // fallback if wrapper doesn't expose `_camera`
             }
 
             const cameraWorldPos = camera.getWorldPosition(new THREE.Vector3());
             const playerPos = this.model.position.clone();
+
+            // NOTE: change how cameraForward is computed for first-person vs third-person
+            // The existing code computed cameraForward as playerPos - cameraWorldPos which works for 3rd-person.
+            // Keep that for third-person movement directions (so controls remain consistent).
             const cameraForward = new THREE.Vector3();
             cameraForward.subVectors(playerPos, cameraWorldPos);
             cameraForward.y = 0;
             cameraForward.normalize();
+
             const cameraRight = new THREE.Vector3();
             cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0));
             cameraRight.normalize();
@@ -197,14 +206,64 @@ class CharacterControls {
 
                 // Check if using first person camera
                 const isFirstPerson = this.cameraController.GetMode && this.cameraController.GetMode() === 'first';
-                
+
+                // If we have a camera wrapper with first-person helper methods, we can hide / restore avatar
+                if (isFirstPerson) {
+                    // Hide avatar meshes so you don't see the body in front of the camera
+                    if (cameraWrapper && typeof cameraWrapper.hideAvatarForFirstPerson === 'function') {
+                        if (!this._avatarHiddenForFP) {
+                            cameraWrapper.hideAvatarForFirstPerson();
+                            this._avatarHiddenForFP = true;
+                        }
+                    }
+                } else {
+                    // restore avatar visibility if we left first-person
+                    if (this._avatarHiddenForFP) {
+                        if (cameraWrapper && typeof cameraWrapper.restoreAvatarVisibility === 'function') {
+                            cameraWrapper.restoreAvatarVisibility();
+                        } else {
+                            // fallback: unhide meshes ourselves
+                            this.model.traverse((child) => {
+                                if (child.isMesh && child.userData._origVisible !== undefined) {
+                                    child.visible = child.userData._origVisible;
+                                    delete child.userData._origVisible;
+                                }
+                            });
+                        }
+                        this._avatarHiddenForFP = false;
+                    }
+                }
+
+                // Movement facing:
+                // - In third-person: rotate player to face movement direction (existing behavior)
+                // - In first-person: do NOT rotate player; instead tell the camera the movement vector so it faces where the avatar is going
+
                 if (!isFirstPerson) {
-                    // Third person: rotate player to face movement direction
+                    // Third person: rotate player to face movement direction (existing behavior)
                     const angle = Math.atan2(moveDirection.x, moveDirection.z);
                     this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
                     this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);
+                } else {
+                    // First-person: do not rotate the model. Instead feed the camera the movement vector so it faces movement.
+                    // Build world-space movement velocity vector (not only direction) so the FP camera can use it.
+                    const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
+                    const movementVecWorld = moveDirection.clone().multiplyScalar(velocity);
+
+                    // If camera wrapper exposes SetUseMovementFacing, prefer to enable it.
+                    if (cameraWrapper && typeof cameraWrapper.SetUseMovementFacing === 'function') {
+                        cameraWrapper.SetUseMovementFacing(true);
+                    }
+
+                    // If the active camera wrapper exposes Update(dt, movementVec), call it here to keep camera facing movement.
+                    if (cameraWrapper && typeof cameraWrapper.Update === 'function') {
+                        cameraWrapper.Update(delta, movementVecWorld);
+                    } else if (cameraWrapper && cameraWrapper._camera && typeof cameraWrapper._camera.update === 'function') {
+                        // fallback: some camera systems place the update on a different object; try `_camera.update`
+                        cameraWrapper._camera.update(delta, movementVecWorld);
+                    }
                 }
 
+                // Finally compute nextPosition and collision check (move the model regardless of camera mode)
                 const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
                 const moveX = moveDirection.x * velocity * delta;
                 const moveZ = moveDirection.z * velocity * delta;
@@ -213,8 +272,41 @@ class CharacterControls {
                 if (!this.willCollide(nextPosition)) {
                     this.model.position.copy(nextPosition);
                 }
+            } else {
+                // No input; still update camera to maintain orientation (use null movementVec to allow fallback to model forward)
+                const isFirstPerson = this.cameraController.GetMode && this.cameraController.GetMode() === 'first';
+                let cameraWrapper = this.cameraController;
+                if (this.cameraController.GetActiveCamera) cameraWrapper = this.cameraController.GetActiveCamera();
+
+                if (isFirstPerson) {
+                    // ensure avatar hidden while in first person (even when standing)
+                    if (cameraWrapper && typeof cameraWrapper.hideAvatarForFirstPerson === 'function' && !this._avatarHiddenForFP) {
+                        cameraWrapper.hideAvatarForFirstPerson();
+                        this._avatarHiddenForFP = true;
+                    }
+                } else {
+                    if (this._avatarHiddenForFP) {
+                        if (cameraWrapper && typeof cameraWrapper.restoreAvatarVisibility === 'function') {
+                            cameraWrapper.restoreAvatarVisibility();
+                        } else {
+                            this.model.traverse((child) => {
+                                if (child.isMesh && child.userData._origVisible !== undefined) {
+                                    child.visible = child.userData._origVisible;
+                                    delete child.userData._origVisible;
+                                }
+                            });
+                        }
+                        this._avatarHiddenForFP = false;
+                    }
+                }
+
+                // Update camera even when idle so it aligns smoothly to facing fallback
+                if (cameraWrapper && typeof cameraWrapper.Update === 'function') {
+                    cameraWrapper.Update(delta, null); // null => use model forward fallback
+                }
             }
         }
+
     }
 
     directionOffset(keysPressed) {
