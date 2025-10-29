@@ -24,7 +24,7 @@ function play() {
     mainMenuMusic.pause();
     mainMenuMusic.currentTime = 0;
     
-    window.location.href ="./src/levels/level2/level2.html" ||"./src/movements/index.html";
+    window.location.href = "./src/movements/index.html"; //"./src/levels/level2/level2.html" ||
 }
 
 function settings() {

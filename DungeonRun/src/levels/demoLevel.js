@@ -20,7 +20,7 @@ export async function loadDemoLevel({
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
-    // 🌤 Ambient and Directional Lighting
+    //  Ambient and Directional Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.3));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
     dirLight.position.set(-60, 100, -10);
@@ -35,7 +35,7 @@ export async function loadDemoLevel({
     dirLight.shadow.mapSize.height = 4096;
     scene.add(dirLight);
 
-    // 🏜️ Floor
+    //  Floor
     const textureLoader = new THREE.TextureLoader();
     const [sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion] = await Promise.all([
         textureLoader.loadAsync('/sand/Sand 002_COLOR.jpg'),
