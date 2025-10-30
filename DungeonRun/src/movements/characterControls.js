@@ -8,15 +8,19 @@ class CharacterControls {
         this.mixer = mixer;
         this.animationsMap = animationsMap || new Map();
         this.thirdPersonCamera = thirdPersonCamera;
+        this.firstPersonCamera = null; // Will be set externally
+        this.currentCamera = thirdPersonCamera;
+        this.isFirstPerson = false;
+        
         this.currentAction = currentAction;
         this.toggleRun = true;
         this.walkDirection = new THREE.Vector3();
         this.rotateAngle = new THREE.Vector3(0, 1, 0);
         this.rotateQuarternion = new THREE.Quaternion();
-        this.fadeDuration = 0.15; // Faster animation transitions
-        this.runVelocity = 5.5; // Balanced speed
-        this.walkVelocity = 2.5; // Balanced speed
-        this.rotationSpeed = 0.25; // Smooth rotation speed
+        this.fadeDuration = 0.15;
+        this.runVelocity = 5.5;
+        this.walkVelocity = 2.5;
+        this.rotationSpeed = 0.25;
         this.collidables = collidables;
 
         this.health = 100;
@@ -27,7 +31,6 @@ class CharacterControls {
             }
         });
 
-        // Handle non-looping animation completion
         this.mixer.addEventListener('finished', (e) => {
             if (['Jump', 'Punch', 'Sword', 'Push', 'Open', 'Pickup', 'Death'].includes(this.currentAction)) {
                 this.playIdle();
@@ -35,7 +38,32 @@ class CharacterControls {
         });
     }
 
-    // Animation Functions
+    setFirstPersonCamera(fpCamera) {
+        this.firstPersonCamera = fpCamera;
+    }
+
+    toggleCameraMode(isFirstPerson) {
+        this.isFirstPerson = isFirstPerson;
+        
+        if (isFirstPerson) {
+            this.currentCamera = this.firstPersonCamera;
+            // Hide player model in first person
+            this.model.visible = false;
+            // Request pointer lock for first person
+            if (this.firstPersonCamera) {
+                this.firstPersonCamera.RequestPointerLock();
+            }
+        } else {
+            this.currentCamera = this.thirdPersonCamera;
+            // Show player model in third person
+            this.model.visible = true;
+            // Exit pointer lock
+            if (this.firstPersonCamera) {
+                this.firstPersonCamera.ExitPointerLock();
+            }
+        }
+    }
+
     playAnimation(animationName, loop = true) {
         if (!this.animationsMap.has(animationName)) {
             console.warn(`Animation ${animationName} not found`);
@@ -97,7 +125,7 @@ class CharacterControls {
     }
 
     switchRunToggle() {
-        this.toggleRun = !this.toggleRun; // unused function now
+        this.toggleRun = !this.toggleRun;
     }
 
     willCollide(nextPosition) {
@@ -119,11 +147,10 @@ class CharacterControls {
         // Handle animation triggers
         if (keysPressed['Space']) {
             this.playJump();
-            // Add vertical movement for jump
             if (this.currentAction === 'Jump') {
                 const action = this.animationsMap.get('Jump');
                 if (action && action.isRunning()) {
-                    this.model.position.y += 2 * delta; // Adjust height/speed as needed
+                    this.model.position.y += 2 * delta;
                     if (this.model.position.y > 2) this.model.position.y = 2;
                 }
             }
@@ -132,17 +159,14 @@ class CharacterControls {
         } else if (keysPressed['KeyE']) {
             this.playSword();
         } else if (keysPressed['KeyR']) {
-
-
-             if (this.currentAction !== 'Pickup') {
+            if (this.currentAction !== 'Pickup') {
                 this.playPickup();
             }
-            
         } else if (keysPressed['KeyT']) {
             this.playOpen();
         } else if (keysPressed['KeyG']) {
             this.playPush();
-        } else if (keysPressed['KeyX']) {  //x key is for death but this has to be automated when they die
+        } else if (keysPressed['KeyX']) {
             this.playDeath();
         } else if (directionPressed && (keysPressed['ShiftLeft'] || keysPressed['ShiftRight'])) {
             this.playRun();
@@ -150,9 +174,8 @@ class CharacterControls {
             this.playWalk();
         } else {
             this.playIdle();
-            // Reset vertical position when not jumping
             if (this.model.position.y > 0) {
-                this.model.position.y -= 2 * delta; // Fall back to ground
+                this.model.position.y -= 2 * delta;
                 if (this.model.position.y < 0) this.model.position.y = 0;
             }
         }
@@ -161,35 +184,66 @@ class CharacterControls {
 
         if (this.currentAction === 'Run' || this.currentAction === 'Walk') {
             let moveDirection = new THREE.Vector3(0, 0, 0);
-            const cameraWorldPos = this.thirdPersonCamera._camera.getWorldPosition(new THREE.Vector3());
-            const playerPos = this.model.position.clone();
-            const cameraForward = new THREE.Vector3();
-            cameraForward.subVectors(playerPos, cameraWorldPos);
-            cameraForward.y = 0;
-            cameraForward.normalize();
-            const cameraRight = new THREE.Vector3();
-            cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0));
-            cameraRight.normalize();
+            
+            if (this.isFirstPerson && this.firstPersonCamera) {
+                // First person movement - use camera direction
+                const cameraForward = this.firstPersonCamera.GetForwardDirection();
+                const cameraRight = this.firstPersonCamera.GetRightDirection();
 
-            if (keysPressed[UP]) {
-                moveDirection.add(cameraForward);
-            }
-            if (keysPressed[DOWN]) {
-                moveDirection.sub(cameraForward);
-            }
-            if (keysPressed[LEFT]) {
-                moveDirection.sub(cameraRight);
-            }
-            if (keysPressed[RIGHT]) {
-                moveDirection.add(cameraRight);
+                if (keysPressed[UP]) {
+                    moveDirection.add(cameraForward);
+                }
+                if (keysPressed[DOWN]) {
+                    moveDirection.sub(cameraForward);
+                }
+                if (keysPressed[LEFT]) {
+                    moveDirection.sub(cameraRight);
+                }
+                if (keysPressed[RIGHT]) {
+                    moveDirection.add(cameraRight);
+                }
+                
+                // Rotate character to face movement direction
+                if (moveDirection.length() > 0) {
+                    const angle = Math.atan2(moveDirection.x, moveDirection.z);
+                    this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
+                    this.model.quaternion.copy(this.rotateQuarternion);
+                }
+            } else {
+                // Third person movement - use camera relative direction
+                const cameraWorldPos = this.thirdPersonCamera._camera.getWorldPosition(new THREE.Vector3());
+                const playerPos = this.model.position.clone();
+                const cameraForward = new THREE.Vector3();
+                cameraForward.subVectors(playerPos, cameraWorldPos);
+                cameraForward.y = 0;
+                cameraForward.normalize();
+                const cameraRight = new THREE.Vector3();
+                cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0));
+                cameraRight.normalize();
+
+                if (keysPressed[UP]) {
+                    moveDirection.add(cameraForward);
+                }
+                if (keysPressed[DOWN]) {
+                    moveDirection.sub(cameraForward);
+                }
+                if (keysPressed[LEFT]) {
+                    moveDirection.sub(cameraRight);
+                }
+                if (keysPressed[RIGHT]) {
+                    moveDirection.add(cameraRight);
+                }
+
+                if (moveDirection.length() > 0) {
+                    moveDirection.normalize();
+                    const angle = Math.atan2(moveDirection.x, moveDirection.z);
+                    this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
+                    this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);
+                }
             }
 
             if (moveDirection.length() > 0) {
                 moveDirection.normalize();
-                const angle = Math.atan2(moveDirection.x, moveDirection.z);
-                this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
-                this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);
-
                 const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
                 const moveX = moveDirection.x * velocity * delta;
                 const moveZ = moveDirection.z * velocity * delta;
@@ -227,22 +281,20 @@ class CharacterControls {
 
         return directionOffset;
     }
+
     resetAnimation() {
-    if (!this.mixer || !this.animationsMap) return;
+        if (!this.mixer || !this.animationsMap) return;
 
-    // Stop all active animations
-    this.mixer.stopAllAction();
+        this.mixer.stopAllAction();
 
-    // Reset to idle if available
-    const idle = this.animationsMap.get('Idle');
-    if (idle) {
-        idle.reset().fadeIn(this.fadeDuration).play();
-        this.currentAction = 'Idle';
+        const idle = this.animationsMap.get('Idle');
+        if (idle) {
+            idle.reset().fadeIn(this.fadeDuration).play();
+            this.currentAction = 'Idle';
+        }
+
+        console.log("CharacterControls: Animation reset to Idle");
     }
-
-    console.log("CharacterControls: Animation reset to Idle"); //so that animations on previous level stop
-}
-
 }
 
 export { CharacterControls };
