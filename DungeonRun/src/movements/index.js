@@ -149,6 +149,11 @@ document.addEventListener('keydown', (event) => {
     keysPressed[event.code] = true;
     if (keyDisplay) keyDisplay.down(event.code);
 
+    // Try pickup from open chest first (artifact/potion)
+    if (event.code === 'KeyR') {
+        if (tryPickupChestArtifact()) return;
+    }
+
     // Key pickup - R key
     if (event.code === 'KeyR' && keyObject && !isKeyGrabbed && characterControls) {
         const playerPos = characterControls.model.position;
@@ -435,6 +440,43 @@ function updateDebugHelpers() {
         scene.add(helper);
         debugHelpers.push(helper);
     });
+}
+
+function tryPickupChestArtifact() {
+    if (!characterControls) return false;
+    // Find nearest chest within 3 units that is open and has a visible artifact
+    const playerPos = characterControls.model.position;
+    let nearest = null;
+    let nearestDist = 3;
+    for (const chest of ChestController.chests) {
+        if (!chest.isOpen || !chest.artifact || !chest.artifact.visible) continue;
+        const chestPos = new THREE.Vector3();
+        chest.root.getWorldPosition(chestPos);
+        const d = playerPos.distanceTo(chestPos);
+        if (d < nearestDist) {
+            nearest = chest;
+            nearestDist = d;
+        }
+    }
+    if (!nearest) return false;
+
+    // Consume artifact: hide and detach
+    if (nearest.artifact) {
+        nearest.artifact.visible = false;
+        nearest.root.remove(nearest.artifact);
+        nearest.artifact = null;
+    }
+
+    // Heal player by the standard damage amount (10), clamped to max
+    if (playerHealthBar) {
+        const healAmount = 10;
+        const newHealth = Math.min(playerHealthBar.health + healAmount, playerHealthBar.maxHealth ?? 100);
+        playerHealthBar.setHealth(newHealth);
+        if (characterControls) characterControls.health = newHealth;
+    }
+
+    console.log('✓ Potion picked up: health increased');
+    return true;
 }
 
 // === Window Resize ===
