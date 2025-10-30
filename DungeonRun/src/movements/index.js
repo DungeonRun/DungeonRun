@@ -24,6 +24,34 @@ let debugHelpers = [];
 // Inventory
 let inventory;
 
+// Inventory slot indexes
+const SLOT_PUNCH = 0;
+const SLOT_SWORD = 1;
+const SLOT_SPELL = 2;
+
+// cooldown durations (seconds)
+const PUNCH_COOLDOWN = 0.6;
+const SWORD_COOLDOWN = 1.5;
+const SPELL_COOLDOWN = 3.0;
+
+// Attack hitbox configuration (adjust to fit animations)
+const ATTACK_CONFIG = {
+    punch: {
+        delay: 0.12, // seconds after animation start when hit registers
+        duration: 0.18, // seconds the hitbox remains active/visible
+        distance: 1.4, // forward distance from player origin
+        size: new THREE.Vector3(1.0, 1.0, 1.2), // w,h,d
+        damage: 8
+    },
+    sword: {
+        delay: 0.18,
+        duration: 0.22,
+        distance: 1.8,
+        size: new THREE.Vector3(1.6, 1.6, 1.4),
+        damage: 25
+    }
+};
+
 // Health
 let playerHealthBar;
 
@@ -141,23 +169,24 @@ document.addEventListener('keydown', (event) => {
         keyDisplay.down(event.code);
     }
 
-    // Key pickup changed to R as the animation is triggered
-    if (event.code === 'KeyE' && keyObject && !isKeyGrabbed && characterControls) {
-        const playerPos = characterControls.model.position;
-        const keyPos = keyObject.position;
-        const distance = playerPos.distanceTo(keyPos);
-        if (distance < 1.0) {
-            grabKey();
-        } 
-    }
+    // Inventory controls (1=punch, 2=sword, 3=spell)
+    if (event.code === 'Digit1') inventory && inventory.select && inventory.select(0);
+    if (event.code === 'Digit2') inventory && inventory.select && inventory.select(1);
+    if (event.code === 'Digit3') inventory && inventory.select && inventory.select(2);
+    if (event.code === 'KeyQ') inventory && inventory.switchItem && inventory.switchItem();
 
-    // Inventory controls
-    if (event.code === 'Digit1') inventory.selected = 0;
-    if (event.code === 'Digit2') inventory.selected = 1;
-    if (event.code === 'KeyQ') inventory.switchItem();
-
-    // Player attack (only when not jumping or other actions)
+    // Player attack / Key pickup (KeyE)
     if (event.code === 'KeyE' && characterControls) {
+        // If there's a visible key nearby, prioritize pickup and don't attack
+        if (keyObject && !isKeyGrabbed && keyObject.visible) {
+            const playerPos = characterControls.model.position;
+            const keyPos = keyObject.position;
+            const distance = playerPos.distanceTo(keyPos);
+            if (distance < 1.0) {
+                grabKey();
+                return; // don't proceed to attack
+            }
+        }
         playerAttack();
     }
 
@@ -189,62 +218,139 @@ document.addEventListener('keyup', (event) => {
 
 function grabKey() {
     if (!keyObject || isKeyGrabbed || !characterControls || !keyObject.visible) return;
+
     isKeyGrabbed = true;
     keyObject.userData.isGrabbed = true;
-    keyObject.visible = false;
-    
-    // Use the class-based KeyDisplay
+
+    characterControls.playPickup();
+
     if (keyDisplay) {
         keyDisplay.updateKeyStatus('yes');
-        keyDisplay.up('KeyR');
+        keyDisplay.up('KeyE');
     }
-    
-    characterControls.playPickup(); // Trigger pickup animation
 
-    //eliminate key animation repeatation
-    keysPressed['KeyR'] = false;
-    console.log('Key grabbed! Status updated to yes.');
+    keysPressed['KeyE'] = false;
+
+    const PICKUP_ANIM_MS = 2700;
+    setTimeout(() => {
+        if (keyObject) { keyObject.visible = false; }
+    }, PICKUP_ANIM_MS);
 
     setTimeout(() => {
         if (isKeyGrabbed && !window._levelSwitched) {
             window._levelSwitched = true;
             switchLevel();
         }
-    }, 1500); 
+    }, PICKUP_ANIM_MS + 2300);
 }
 
-let spellCooldownEnd = 5000;
 function playerAttack() {
-    if (!characterControls || !characterControls.model) return;
-    if (inventory.getSelected() === 'sword') {
-        swordAttack();
-        characterControls.playSword(); // Trigger sword animation
-    } else if (inventory.getSelected() === 'spell') {
-        if (performance.now() > spellCooldownEnd) {
+    if (!characterControls || !characterControls.model || !inventory) return;
+    const selected = inventory.getSelected();
+
+    if (selected === 'punch') {
+        if (!inventory.isOnCooldown(SLOT_PUNCH)) {
+            // play punch animation and schedule hitbox
+            characterControls.playPunch();
+            spawnAttackHitbox('punch');
+            inventory.startCooldown(SLOT_PUNCH, PUNCH_COOLDOWN);
+        }
+    } else if (selected === 'sword') {
+        if (!inventory.isOnCooldown(SLOT_SWORD)) {
+            characterControls.playSword();
+            spawnAttackHitbox('sword');
+            inventory.startCooldown(SLOT_SWORD, SWORD_COOLDOWN);
+        }
+    } else if (selected === 'spell') {
+        if (!inventory.isOnCooldown(SLOT_SPELL)) {
             const origin = characterControls.model.position.clone();
             origin.y += 1.2;
             const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(characterControls.model.quaternion);
             projectileManager.fireSpell(origin, direction);
-            spellCooldownEnd = performance.now() + 5000;
+            inventory.startCooldown(SLOT_SPELL, SPELL_COOLDOWN);
         }
     }
 }
 
 function swordAttack() {
-    if (!characterControls || !characterControls.model) return;
-    const playerPos = characterControls.model.position.clone();
-    const forward = new THREE.Vector3(0, 0.5, -0.33).applyQuaternion(characterControls.model.quaternion);
-    const hitboxCenter = playerPos.clone().add(forward.multiplyScalar(2));
-    const hitboxSize = new THREE.Vector3(1.5, 2, 1.4);
-    const hitbox = new THREE.Box3().setFromCenterAndSize(hitboxCenter, hitboxSize);
+    // kept for backward compatibility but not used by new timed hitbox system
+    return;
+}
 
-    enemies.forEach(enemy => {
-        if (!enemy.enemyModel) return;
-        const enemyBox = new THREE.Box3().setFromObject(enemy.enemyModel);
-        if (hitbox.intersectsBox(enemyBox)) {
-            enemy.health = Math.max(0, enemy.health - 25);
-        }
-    });
+/**
+ * Spawn a timed hitbox for an attack type (punch/sword).
+ * The actual hit check runs after the configured delay so it lines up with the animation.
+ */
+function spawnAttackHitbox(type) {
+    if (!characterControls || !characterControls.model) return;
+    const cfg = ATTACK_CONFIG[type];
+    if (!cfg) return;
+
+    // Visual mesh for debug (created immediately but only visible when debugMode)
+    const boxGeo = new THREE.BoxGeometry(cfg.size.x, cfg.size.y, cfg.size.z);
+    const mat = new THREE.MeshBasicMaterial({ color: 0xff0000, wireframe: true, transparent: true, opacity: 0.6 });
+    const hitMesh = new THREE.Mesh(boxGeo, mat);
+    hitMesh.name = `hitbox_${type}`;
+    hitMesh.visible = debugMode;
+    scene.add(hitMesh);
+
+    // Track for debug cleanup
+    debugHelpers.push(hitMesh);
+
+    // Schedule the moment the hit actually registers
+    const delayMs = Math.max(0, Math.floor(cfg.delay * 1000));
+    const durationMs = Math.max(50, Math.floor(cfg.duration * 1000));
+
+    const applyHit = () => {
+        // compute center based on current player orientation so timing offset matches animation
+        const playerPos = characterControls.model.position.clone();
+        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(characterControls.model.quaternion).normalize();
+        const center = playerPos.clone().add(forward.clone().multiplyScalar(cfg.distance));
+        // lift the hitbox a bit to player chest height
+        center.y += 1.0;
+
+        // position visual mesh
+        hitMesh.position.copy(center);
+        // orient mesh to face same forward direction
+        const quat = new THREE.Quaternion();
+        quat.setFromUnitVectors(new THREE.Vector3(0, 0, 1), forward);
+        hitMesh.quaternion.copy(quat);
+
+        // build Box3 for collision test
+        const half = cfg.size.clone().multiplyScalar(0.5);
+        const min = center.clone().sub(half);
+        const max = center.clone().add(half);
+        const hitBox = new THREE.Box3(min, max);
+
+        // debug: ensure visible when enabled
+        hitMesh.visible = debugMode;
+
+        // apply damage to enemies that intersect
+        enemies.forEach(enemy => {
+            if (!enemy.enemyModel) return;
+            const enemyBox = new THREE.Box3().setFromObject(enemy.enemyModel);
+            if (hitBox.intersectsBox(enemyBox)) {
+                // apply damage depending on type
+                const dmg = cfg.damage || 1;
+                enemy.health = Math.max(0, enemy.health - dmg);
+            }
+        });
+
+        // keep hitMesh visible for durationMs then remove
+        setTimeout(() => {
+            // remove visual and from debugHelpers
+            const idx = debugHelpers.indexOf(hitMesh);
+            if (idx !== -1) debugHelpers.splice(idx, 1);
+            if (hitMesh.parent) hitMesh.parent.remove(hitMesh);
+        }, durationMs);
+    };
+
+    // Initially position hitMesh near player (so you can see it if debugMode is on)
+    const initPos = characterControls.model.position.clone().add(new THREE.Vector3(0, 1, 0));
+    hitMesh.position.copy(initPos);
+
+    // schedule apply
+    setTimeout(applyHit, delayMs);
 }
 
 // Animation loop
@@ -252,7 +358,7 @@ const clock = new THREE.Clock();
 function animate() {
     const mixerUpdateDelta = clock.getDelta();
 
-    if (loader && loader.isLoading) {
+    if (loader && loader.isLoading || isGameOver) {
         loader.render();
         requestAnimationFrame(animate);
         return;
@@ -279,8 +385,23 @@ function animate() {
         if (characterControls.health <= 0 && !isGameOver) {
             characterControls.playDeath();
             isGameOver = true; // Prevent repeated triggers
+
+            if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
+                document.exitPointerLock();
+            }
+            const cameraPosition = camera.position.clone();
+            const cameraRotation = camera.rotation.clone();
+            setTimeout(() => {
+                //if (characterControls.model) { scene.remove(characterControls.model); }
+            },1000)
+            
+            gameOverUI.show(() => {
+                loadLevel(loadDemoLevel);
+            });
+            characterControls = null;
         }
     }
+
 
     enemies.forEach(enemy => {
         enemy.update(mixerUpdateDelta, characterControls);
@@ -352,20 +473,7 @@ function animate() {
         playerHealthBar.setHealth(characterControls.health);
     }
 
-    if (characterControls && characterControls.health <= 0 && !gameOverUI.isGameOver) {
-        if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
-            document.exitPointerLock();
-        }
-        const cameraPosition = camera.position.clone();
-        const cameraRotation = camera.rotation.clone();
-        if (characterControls.model) {
-            scene.remove(characterControls.model);
-        }
-        gameOverUI.show(() => {
-            loadLevel(loadDemoLevel);
-        });
-        characterControls = null;
-    }
+    
 
     if (debugMode) updateDebugHelpers();
 

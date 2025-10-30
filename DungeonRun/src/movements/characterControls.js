@@ -116,6 +116,24 @@ class CharacterControls {
     update(delta, keysPressed) {
         const directionPressed = DIRECTIONS.some(key => keysPressed[key] === true);
 
+        // Prevent interrupting non-looping actions (attacks, pickup, death, jump)
+        const NON_INTERRUPT_ACTIONS = ['Jump', 'Punch', 'Sword', 'Push', 'Open', 'Pickup', 'Death'];
+        const currentActionObj = this.animationsMap.get(this.currentAction);
+        if (NON_INTERRUPT_ACTIONS.includes(this.currentAction) && currentActionObj && currentActionObj.isRunning()) {
+            // keep mixer progressing the current non-looping action and avoid switching to Idle/Walk/Run
+            this.mixer.update(delta);
+
+            // preserve simple jump vertical movement while jump action is running
+            if (this.currentAction === 'Jump') {
+                const action = this.animationsMap.get('Jump');
+                if (action && action.isRunning()) {
+                    this.model.position.y += 2 * delta; // keep jump motion
+                    if (this.model.position.y > 2) this.model.position.y = 2;
+                }
+            }
+            return;
+        }
+
         // Handle animation triggers
         if (keysPressed['Space']) {
             this.playJump();
@@ -127,16 +145,14 @@ class CharacterControls {
                     if (this.model.position.y > 2) this.model.position.y = 2;
                 }
             }
-        } else if (keysPressed['KeyF']) {
+        /*} else if (keysPressed['KeyF']) {
             this.playPunch();
         } else if (keysPressed['KeyE']) {
             this.playSword();
         } else if (keysPressed['KeyR']) {
-
-
              if (this.currentAction !== 'Pickup') {
                 this.playPickup();
-            }
+            }*/
             
         } else if (keysPressed['KeyT']) {
             this.playOpen();

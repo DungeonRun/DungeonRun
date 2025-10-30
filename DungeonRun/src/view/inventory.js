@@ -16,13 +16,17 @@ export class Inventory {
     document.body.appendChild(this.container);
 
     // === Inventory setup ===
-    this.slots = [];
-    this.maxSlots = 2;
-    this.selectedIndex = 0;
+  this.slots = [];
+  this.maxSlots = 3;
+  this.selectedIndex = 0;
 
-    this.items = ['sword', 'spell'];
-    this.selected = 0;
-    this.cooldowns = [0, 0]; // sword, spell
+  // slot mapping: 0 = punch, 1 = sword, 2 = spell
+  this.items = ['punch', 'sword', 'spell'];
+
+  // cooldowns: objects { end: timestamp(ms), duration: seconds }
+  this.cooldowns = new Array(this.maxSlots).fill(null).map(() => ({ end: 0, duration: 0 }));
+  this._running = true;
+  this._rafId = null;
 
 
     this.createInventoryUI();
@@ -32,7 +36,7 @@ export class Inventory {
   injectStyles() {
     const style = document.createElement('style');
     style.innerHTML = `
-      @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap');}
+      @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap');
 
       .inventory-bar {
         display: flex;
@@ -106,13 +110,49 @@ export class Inventory {
       label.classList.add('slot-label');
       label.innerText = i + 1;
 
+      // grey overlay while cooling
+      const greyOverlay = document.createElement('div');
+      greyOverlay.style.position = 'absolute';
+      greyOverlay.style.top = '0';
+      greyOverlay.style.left = '0';
+      greyOverlay.style.right = '0';
+      greyOverlay.style.bottom = '0';
+      greyOverlay.style.background = 'rgba(0,0,0,0.5)';
+      greyOverlay.style.borderRadius = '8px';
+      greyOverlay.style.display = 'none';
+      greyOverlay.style.pointerEvents = 'none';
+
+      // progress bar container
+      const progress = document.createElement('div');
+      progress.style.position = 'absolute';
+      progress.style.height = '6px';
+      progress.style.left = '4px';
+      progress.style.right = '4px';
+      progress.style.bottom = '4px';
+      progress.style.background = 'rgba(255,255,255,0.08)';
+      progress.style.borderRadius = '4px';
+      progress.style.overflow = 'hidden';
+      progress.style.pointerEvents = 'none';
+
+      const progressFill = document.createElement('div');
+      progressFill.style.height = '100%';
+      progressFill.style.width = '0%';
+      progressFill.style.background = '#4b8cff';
+
+      progress.appendChild(progressFill);
+
       slot.appendChild(label);
+      slot.appendChild(greyOverlay);
+      slot.appendChild(progress);
+
       this.inventoryBar.appendChild(slot);
-      this.slots.push({ element: slot, img: null });
+      this.slots.push({ element: slot, img: null, greyOverlay, progress, progressFill });
     }
 
     this.container.appendChild(this.inventoryBar);
     this.updateSelection();
+    // start UI updater
+    this._startLoop();
   }
 
   addItem(imagePath) {
@@ -142,8 +182,11 @@ export class Inventory {
     document.addEventListener('keydown', (e) => {
       const num = parseInt(e.key);
       if (num >= 1 && num <= this.maxSlots) {
-        this.selectedIndex = num - 1;
-        this.updateSelection();
+        this.select(num - 1);
+      }
+      // quick toggle with q/Q handled in main input as well but allow here
+      if (e.key.toLowerCase() === 'q') {
+        this.switchItem();
       }
     });
   }
@@ -160,21 +203,67 @@ export class Inventory {
 
   //might be redundant, we'll see
   switchItem() {
-    this.selected = (this.selected + 1) % this.items.length;
+    const next = (this.selectedIndex + 1) % this.maxSlots;
+    this.select(next);
   }
+
+  select(idx) {
+    if (idx < 0 || idx >= this.maxSlots) return;
+    this.selectedIndex = idx;
+    this.updateSelection();
+  }
+
   getSelected() {
-    return this.items[this.selected];
+    return this.items[this.selectedIndex];
   }
-  setCooldown(idx, time) {
-    this.cooldowns[idx] = time;
+
+  // Start a cooldown in seconds for slot idx
+  startCooldown(idx, durationSec) {
+    const now = performance.now();
+    this.cooldowns[idx] = { end: now + durationSec * 1000, duration: durationSec };
   }
-  getCooldown(idx) {
-    return this.cooldowns[idx];
+
+  // is slot still cooling?
+  isOnCooldown(idx) {
+    const now = performance.now();
+    return this.cooldowns[idx] && now < this.cooldowns[idx].end;
+  }
+
+  // 0..1 progress for cooldown (0 means just started, 1 means finished)
+  getCooldownProgress(idx) {
+    const now = performance.now();
+    const cd = this.cooldowns[idx];
+    if (!cd || cd.duration <= 0) return 1;
+    const start = cd.end - cd.duration * 1000;
+    const elapsed = now - start;
+    return Math.min(1, Math.max(0, elapsed / (cd.duration * 1000)));
   }
 
   remove() {
+        this._running = false;
+        if (this._rafId) cancelAnimationFrame(this._rafId);
         if (this.container && this.container.parentNode) {
             this.container.parentNode.removeChild(this.container);
         }
     }
+
+  _startLoop() {
+    const update = () => {
+      if (!this._running) return;
+      for (let i = 0; i < this.slots.length; i++) {
+        const s = this.slots[i];
+        const onCD = this.isOnCooldown(i);
+        if (onCD) {
+          s.greyOverlay.style.display = 'block';
+          const prog = this.getCooldownProgress(i) * 100;
+          s.progressFill.style.width = prog + '%';
+        } else {
+          s.greyOverlay.style.display = 'none';
+          s.progressFill.style.width = '100%';
+        }
+      }
+      this._rafId = requestAnimationFrame(update);
+    };
+    this._rafId = requestAnimationFrame(update);
+  }
 }
