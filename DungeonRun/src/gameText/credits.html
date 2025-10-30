@@ -17,7 +17,7 @@
         <li><b>Ntokozo  Skosana</b> – 2440810</li>
         <li><b>Niel  Grobler</b> – </li>
         <li><b>Naledi Mogomotsi</b> –2684883 </li>
-        <li><b>Risuna Ntimana</b> – </li>
+        <li><b>Risuna Ntimana</b> –2684367 </li>
         <li><b>Hulisani  Netshaulu</b> – 2769364</li>
         
       </ul>
@@ -74,5 +74,18 @@
       window.location.href = '../../index.html'; // Go back to main menu
     });
   </script>
+
+  <script>
+                window.addEventListener('DOMContentLoaded', () => {
+            const shouldPlay = sessionStorage.getItem('playMusic');
+            if (shouldPlay === 'true') {
+                const bgMusic = new Audio('../sounds/mainMenuSound.mp3');
+                bgMusic.loop = true;
+                bgMusic.volume = 0.5;
+                bgMusic.play().catch(err => console.log('Music blocked until user interacts.'));
+            }
+        });
+
+    </script>
 </body>
 </html>

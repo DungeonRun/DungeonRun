@@ -29,6 +29,7 @@
                 <li><b>X</b> - Death Animation (Auto on death later)</li>
                 <li><b>E</b> – Fight / Pick up key</li>
                 <li><b>Q</b> – Switch equipped item</li>
+                <li><b>M</b> – Open Pause Menu</li>
                 <li><b>1 / 2</b> – Select item (Sword or Spell)</li>
                 <li><b>H</b> – Take damage (for testing)</li>
             </ul>
@@ -51,6 +52,19 @@
         document.getElementById('back-btn').addEventListener('click', () => {
             window.location.href = '../../index.html'; // go back to main menu
         });
+    </script>
+
+    <script>
+                window.addEventListener('DOMContentLoaded', () => {
+            const shouldPlay = sessionStorage.getItem('playMusic');
+            if (shouldPlay === 'true') {
+                const bgMusic = new Audio('../sounds/mainMenuSound.mp3');
+                bgMusic.loop = true;
+                bgMusic.volume = 0.5;
+                bgMusic.play().catch(err => console.log('Music blocked until user interacts.'));
+            }
+        });
+
     </script>
 </body>
 </html>

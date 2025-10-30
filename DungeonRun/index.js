@@ -1,11 +1,16 @@
 // Create audio element for main menu
 const mainMenuMusic = new Audio('./src/sounds/mainMenuSound.mp3');
 mainMenuMusic.loop = true;  // Loop the music
-mainMenuMusic.volume = 0.5; // Set volume to 50%
+//mainMenuMusic.volume = 0.5; // Set volume to 50%
+
+const savedMusicVolume = localStorage.getItem('musicVolume');
+mainMenuMusic.volume = savedMusicVolume ? parseFloat(savedMusicVolume) : 0.5;
 
 // Create audio element for button clicks
 const clickSound = new Audio('./src/sounds/clickButton.mp3');
-clickSound.volume = 0.7; // Set volume to 70%
+//clickSound.volume = 1; // Set volume to 100%
+const savedSoundVolume = localStorage.getItem('soundVolume');
+clickSound.volume = savedSoundVolume ? parseFloat(savedSoundVolume) : 1.0;
 
 // Try to play music when page loads
 function playMainMenuMusic() {
@@ -21,6 +26,7 @@ function playMainMenuMusic() {
 // Navigation functions
 function play() {
     // Stop the music before navigating
+    clickSound.play();
     mainMenuMusic.pause();
     mainMenuMusic.currentTime = 0;
     
@@ -28,17 +34,21 @@ function play() {
 }
 
 function settings() {
-    alert("Under development");
+    clickSound.play();
+    sessionStorage.setItem('playMusic', 'true'); // Remember to play music
+    window.location.href = "./src/gameText/settings.html";
 }
 
 function credits() {
     clickSound.play();
+    sessionStorage.setItem('playMusic', 'true'); // Remember to play music
     window.location.href = "./src/gameText/credits.html";
 }
 
 //adding the instructions code here
 function instructions(){
     clickSound.play();
+    sessionStorage.setItem('playMusic', 'true'); // Remember to play music
     window.location.href = "./src/gameText/instructions.html";
 }
 
