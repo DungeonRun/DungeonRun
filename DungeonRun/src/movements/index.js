@@ -10,6 +10,7 @@ import { loadLevel2 } from '../levels/level2.js';
 import { loadLevel3 } from '../levels/level3.js';
 import { PauseMenuUI } from '../view/pauseMenuUI.js';
 import { GameTimerUI } from '../view/timerUI.js';
+import { ChestController } from '../ChestController.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -63,6 +64,11 @@ let keyDisplay;
 const projectileManager = new ProjectileManager(scene, camera, enemies);
 let projectiles = [];
 
+// Chest interaction state
+let isHoldingChestKey = false;
+let chestKeyHoldTime = 0;
+const CHEST_OPEN_HOLD_TIME = 0.5; // Hold T for 0.5 seconds to open chest
+
 // === Clear Scene Function ===
 function clearScene() {
     if (thirdPersonCamera) thirdPersonCamera.cleanup();
@@ -101,6 +107,7 @@ async function loadLevel(levelLoader, levelName = '') {
         onPlayerLoaded: ({ model, mixer, animationsMap, characterControls: cc, thirdPersonCamera: cam }) => {
             characterControls = cc;
             thirdPersonCamera = cam;
+            ChestController.setPlayerModel(model);
         },
         onEnemiesLoaded: ({ enemies: enemyArr }) => {
             enemies = enemyArr;
@@ -142,8 +149,8 @@ document.addEventListener('keydown', (event) => {
     keysPressed[event.code] = true;
     if (keyDisplay) keyDisplay.down(event.code);
 
-    // Key pickup
-    if (event.code === 'KeyE' && keyObject && !isKeyGrabbed && characterControls) {
+    // Key pickup - R key
+    if (event.code === 'KeyR' && keyObject && !isKeyGrabbed && characterControls) {
         const playerPos = characterControls.model.position;
         const keyPos = keyObject.position;
         if (playerPos.distanceTo(keyPos) < 1.0) grabKey();
@@ -157,7 +164,27 @@ document.addEventListener('keydown', (event) => {
     // Player attack
     if (event.code === 'KeyE' && characterControls) playerAttack();
 
-    // Damage player (debug)
+    // Chest interaction - T key (hold to open)
+    if (event.code === 'KeyT' && characterControls) {
+        const nearestDist = ChestController.getNearestChestDistance();
+        if (nearestDist < 3) {
+            isHoldingChestKey = true;
+            chestKeyHoldTime = 0;
+            characterControls.playOpen();
+        }
+    }
+
+    // Quick chest toggle - C key (instant toggle)
+    if (event.code === 'KeyC' && characterControls) {
+        const interacted = ChestController.tryInteract();
+        if (interacted) {
+            console.log('✓ Chest toggled');
+        } else {
+            console.log('No chest nearby to interact with');
+        }
+    }
+
+    // Damage player
     if (event.code === 'KeyH' && playerHealthBar) {
         playerHealthBar.setHealth(playerHealthBar.health - 10);
         if (characterControls) characterControls.health = playerHealthBar.health;
@@ -174,6 +201,12 @@ document.addEventListener('keyup', (event) => {
     if ((loader && loader.isLoading) || isPaused) return;
     keysPressed[event.code] = false;
     if (keyDisplay) keyDisplay.up(event.code);
+
+    // Stop chest opening when T is released
+    if (event.code === 'KeyT') {
+        isHoldingChestKey = false;
+        chestKeyHoldTime = 0;
+    }
 }, false);
 
 // === Key Grab Logic ===
@@ -274,12 +307,28 @@ function animate() {
     if (!isPaused) {
         if (characterControls) {
             characterControls.update(delta, keysPressed);
+
+            // Handle chest opening with T key held
+            if (isHoldingChestKey) {
+                chestKeyHoldTime += delta;
+                if (chestKeyHoldTime >= CHEST_OPEN_HOLD_TIME) {
+                    const interacted = ChestController.tryInteract();
+                    if (interacted) console.log('✓ Chest opened after holding T');
+                    isHoldingChestKey = false;
+                    chestKeyHoldTime = 0;
+                }
+            }
+
+            // Death handling
             if (characterControls.health <= 0 && !isGameOver) {
                 characterControls.playDeath();
                 isGameOver = true;
-                if (gameTimer) gameTimer.stop(); // ⛔ Stop timer on death
+                if (gameTimer) gameTimer.stop();
             }
         }
+
+        // Update chest animations
+        ChestController.update(delta);
 
         enemies.forEach(enemy => {
             enemy.update(delta, characterControls);
@@ -289,11 +338,56 @@ function animate() {
             }
         });
 
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            const enemy = enemies[i];
+            if (enemy.health <= 0) {
+                scene.remove(enemy.enemyModel);
+                if (enemy.healthBar) enemy.healthBar.remove();
+                if (enemy.debugHelper) {
+                    scene.remove(enemy.debugHelper);
+                    enemy.debugHelper = null;
+                }
+                enemies.splice(i, 1);
+            }
+        }
+
+        if (keyAnimator) keyAnimator();
+
+        // Key pickup prompt (R)
+        if (keyObject && !isKeyGrabbed && characterControls) {
+            const playerPos = characterControls.model.position;
+            const distance = playerPos.distanceTo(keyObject.position);
+            if (distance < 3) {
+                if (keyDisplay) keyDisplay.down('KeyR');
+            } else {
+                if (keyDisplay) keyDisplay.up('KeyR');
+            }
+        } else if (keyDisplay) {
+            keyDisplay.up('KeyR');
+        }
+
+        // Chest prompts (T hold, C toggle)
+        if (characterControls && keyDisplay) {
+            const nearestChestDistance = ChestController.getNearestChestDistance();
+            if (nearestChestDistance < 3) {
+                keyDisplay.down('KeyT');
+                keyDisplay.down('KeyC');
+            } else {
+                keyDisplay.up('KeyT');
+                keyDisplay.up('KeyC');
+            }
+        }
+
         projectileManager.enemies = enemies;
         projectileManager.update(delta);
 
-        if (thirdPersonCamera) thirdPersonCamera.Update(delta);
-        if (playerHealthBar && characterControls) playerHealthBar.setHealth(characterControls.health);
+        if (thirdPersonCamera) {
+            thirdPersonCamera.Update(delta);
+        }
+
+        if (playerHealthBar && characterControls) {
+            playerHealthBar.setHealth(characterControls.health);
+        }
 
         if (characterControls && characterControls.health <= 0 && !gameOverUI.isGameOver) {
             if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) document.exitPointerLock();
@@ -327,10 +421,14 @@ function updateDebugHelpers() {
     debugHelpers.forEach(h => scene.remove(h));
     debugHelpers = [];
     if (!debugMode) return;
-    const playerBox = new THREE.Box3().setFromObject(characterControls.model);
-    const playerHelper = new THREE.Box3Helper(playerBox, 0x00ff00);
-    scene.add(playerHelper);
-    debugHelpers.push(playerHelper);
+    
+    if (characterControls && characterControls.model) {
+        const playerBox = new THREE.Box3().setFromObject(characterControls.model);
+        const playerHelper = new THREE.Box3Helper(playerBox, 0x00ff00);
+        scene.add(playerHelper);
+        debugHelpers.push(playerHelper);
+    }
+
     enemies.forEach(enemy => {
         const box = new THREE.Box3().setFromObject(enemy.enemyModel);
         const helper = new THREE.Box3Helper(box, 0xff0000);

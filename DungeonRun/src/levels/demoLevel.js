@@ -1,6 +1,7 @@
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
+import { ChestController } from '../ChestController.js';
 import { EnemyMovement } from '../movements/enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { CharacterControls } from '../movements/characterControls.js';
@@ -16,6 +17,10 @@ export async function loadDemoLevel({
     onEnemiesLoaded,
     onKeyLoaded
 }) {
+    // Initialize ChestController first
+    ChestController.init(scene, null);
+    console.log('ChestController initialized');
+
     THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -160,6 +165,10 @@ export async function loadDemoLevel({
 
                 const characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle', collidables);
 
+                // Set up the player model in ChestController and log its position
+                ChestController.setPlayerModel(model);
+                console.log('Player initial position:', model.position.toArray());
+
                 if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
                 updateLoader();
                 resolve();
@@ -172,7 +181,7 @@ export async function loadDemoLevel({
     const enemyHealthBars = [];
     const enemiesLoadPromise = playerLoadPromise.then(async () => {
         const enemyLoadPromises = enemyConfigs.map((cfg, index) => 
-            new Promise(resolve => {
+                    new Promise(resolve => {
                 const enemy = new EnemyMovement(scene, cfg.modelPath, cfg.pos,cfg.type,  (enemyModel) => {
                         const enemyLight = new THREE.PointLight(0xff0000, 1, 4);
                         enemyLight.position.set(0, 0, 0);
@@ -228,12 +237,59 @@ export async function loadDemoLevel({
                     chest.name = `treasure_chest_${index}`;
                     scene.add(chest);
                     
+                    // Debug: Log chest structure
+                    console.log(`Chest ${index} structure:`);
+                    chest.traverse((node) => {
+                        if (node.name) {
+                            console.log(`  - ${node.name} (type: ${node.type})`);
+                        }
+                    });
+                    
+                    // Register chest with pivot offset
+                    // ADJUST THESE VALUES based on your model:
+                    // Register chest with pivot offset - TEST DIFFERENT VALUES
+                                        // Register chest - TEST THESE OPTIONS
+                    const registeredChest = ChestController.registerChest(chest, {
+                        // TEST 1: Y-axis with 111 degrees (remainder of 11111)
+                        rotationAxis: 'y',
+                        openAngle: Math.PI /2,  // 111 degrees
+                        pivotOffset: new THREE.Vector3(0, 0, 0.5),
+                        duration: 1.2
+                        
+                        // TEST 2: Y-axis with full 11111 degrees (probably too much spinning)
+                        // rotationAxis: 'y',
+                        // openAngle: 11111 * Math.PI / 180,
+                        // pivotOffset: new THREE.Vector3(0, 0, 0.5),
+                        
+                        // TEST 3: Y-axis with 90 degrees
+                        // rotationAxis: 'y',
+                        // openAngle: Math.PI / 2,  // 90 degrees
+                        // pivotOffset: new THREE.Vector3(0, 0, 0.5),
+                        
+                        // TEST 4: Try negative rotation
+                        // rotationAxis: 'y',
+                        // openAngle: -(11111 % 360) * Math.PI / 180,
+                        // pivotOffset: new THREE.Vector3(0, 0, 0.5),
+                        
+                        // TEST 5: Different pivot offset
+                        // rotationAxis: 'y',
+                        // openAngle: (11111 % 360) * Math.PI / 180,
+                        // pivotOffset: new THREE.Vector3(0, 0, -0.5),
+                    });
+                    
+                    if (!registeredChest) {
+                        console.error(`Failed to register chest ${index} - Lid not found!`);
+                    } else {
+                        console.log(`Chest ${index} registered successfully`);
+                    }
+                    
+                    // Create an invisible collision box (used for player collision)
                     const chestCollisionBox = new THREE.Mesh(
                         new THREE.BoxGeometry(2, 2, 2),
                         new THREE.MeshBasicMaterial({ visible: false })
                     );
                     chestCollisionBox.position.copy(position);
-                    chestCollisionBox.position.y = 1;
+                    chestCollisionBox.position.y = 1;  // Raise it off the ground
                     chestCollisionBox.name = `chest_collision_${index}`;
                     chestCollisionBox.geometry.computeBoundsTree();
                     scene.add(chestCollisionBox);
@@ -256,6 +312,8 @@ export async function loadDemoLevel({
     });
 
     await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, ...chestPromises]);
+    
+    console.log(`\n✓ Level loaded with ${ChestController.chests.length} chests`);
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {
