@@ -197,6 +197,7 @@ export async function loadDemoLevel({
 
     //  Key
     const keyLoadPromise = addGlowingKey(scene).then(({ animator, key }) => {
+        key.visible = false;
         if (onKeyLoaded) onKeyLoaded({ animator, key });
         updateLoader();
         return { animator, key };

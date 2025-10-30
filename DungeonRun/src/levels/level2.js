@@ -200,6 +200,7 @@ export async function loadLevel2({
 
     //  Key
     const keyLoadPromise = addGlowingKey(scene).then(({ animator, key }) => {
+        key.visible = false;
         if (onKeyLoaded) onKeyLoaded({ animator, key });
         updateLoader();
         return { animator, key };

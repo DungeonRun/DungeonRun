@@ -66,8 +66,22 @@ export class EnemyHealthBar {
     }
 
     remove() {
-        if (this.parent && this.group) {
-            this.parent.remove(this.group);
+        if (this.group && this.scene) {
+            this.scene.remove(this.group);
         }
+        if (this.bgMesh) {
+            this.bgMesh.geometry.dispose();
+            this.bgMesh.material.dispose();
+        }
+        if (this.fgMesh) {
+            this.fgMesh.geometry.dispose();
+            this.fgMesh.material.dispose();
+        }
+        
+        this.group = null;
+        this.bgMesh = null;
+        this.fgMesh = null;
+        this.parent = null;
+        this.scene = null;
     }
 }

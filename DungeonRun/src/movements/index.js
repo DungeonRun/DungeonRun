@@ -142,13 +142,13 @@ document.addEventListener('keydown', (event) => {
     }
 
     // Key pickup changed to R as the animation is triggered
-    if (event.code === 'KeyR' && keyObject && !isKeyGrabbed && characterControls) {
+    if (event.code === 'KeyE' && keyObject && !isKeyGrabbed && characterControls) {
         const playerPos = characterControls.model.position;
         const keyPos = keyObject.position;
         const distance = playerPos.distanceTo(keyPos);
-        if (distance < 0.5) {
+        if (distance < 1.0) {
             grabKey();
-        }
+        } 
     }
 
     // Inventory controls
@@ -157,7 +157,7 @@ document.addEventListener('keydown', (event) => {
     if (event.code === 'KeyQ') inventory.switchItem();
 
     // Player attack (only when not jumping or other actions)
-    if (event.code === 'KeyV' && characterControls) {
+    if (event.code === 'KeyE' && characterControls) {
         playerAttack();
     }
 
@@ -188,7 +188,7 @@ document.addEventListener('keyup', (event) => {
 }, false);
 
 function grabKey() {
-    if (!keyObject || isKeyGrabbed || !characterControls) return;
+    if (!keyObject || isKeyGrabbed || !characterControls || !keyObject.visible) return;
     isKeyGrabbed = true;
     keyObject.userData.isGrabbed = true;
     keyObject.visible = false;
@@ -204,6 +204,13 @@ function grabKey() {
     //eliminate key animation repeatation
     keysPressed['KeyR'] = false;
     console.log('Key grabbed! Status updated to yes.');
+
+    setTimeout(() => {
+        if (isKeyGrabbed && !window._levelSwitched) {
+            window._levelSwitched = true;
+            switchLevel();
+        }
+    }, 1500); 
 }
 
 let spellCooldownEnd = 5000;
@@ -216,7 +223,7 @@ function playerAttack() {
         if (performance.now() > spellCooldownEnd) {
             const origin = characterControls.model.position.clone();
             origin.y += 1.2;
-            const direction = new THREE.Vector3(0, 0, -1).applyQuaternion(characterControls.model.quaternion);
+            const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(characterControls.model.quaternion);
             projectileManager.fireSpell(origin, direction);
             spellCooldownEnd = performance.now() + 5000;
         }
@@ -286,8 +293,13 @@ function animate() {
     for (let i = enemies.length - 1; i >= 0; i--) {
         const enemy = enemies[i];
         if (enemy.health <= 0) {
-            scene.remove(enemy.enemyModel);
-            if (enemy.healthBar) enemy.healthBar.remove();
+            if (enemy.healthBar) {
+                enemy.healthBar.remove();
+                enemy.healthBar = null;
+            }
+            if (enemy.enemyModel) {
+                scene.remove(enemy.enemyModel);
+            }
             if (enemy.debugHelper) {
                 scene.remove(enemy.debugHelper);
                 enemy.debugHelper = null;
@@ -298,24 +310,34 @@ function animate() {
 
     if (keyAnimator) keyAnimator();
 
-    if (keyObject && !isKeyGrabbed && characterControls) {
-        const playerPos = characterControls.model.position;
-        const distance = playerPos.distanceTo(keyObject.position);
-        if (distance < 3) {
-            if (keyDisplay) {
-                keyDisplay.down('KeyR');
-            }
-            if (distance < 3 && distance > 2) {
-                console.log('Press R to grab the key!');
+    if (keyObject && !isKeyGrabbed) {
+        const allEnemiesDefeated = (enemies.length === 0);
+        keyObject.visible = allEnemiesDefeated;
+        
+        // Only show key interaction prompt when enemies are defeated
+        if (allEnemiesDefeated && characterControls) {
+            const playerPos = characterControls.model.position;
+            const distance = playerPos.distanceTo(keyObject.position);
+            if (distance < 3) {
+                if (keyDisplay) {
+                    keyDisplay.down('KeyE');
+                }
+                if (distance < 3 && distance > 2) {
+                    console.log('Press E to grab the key!');
+                }
+            } else {
+                if (keyDisplay) {
+                    keyDisplay.up('KeyE');
+                }
             }
         } else {
             if (keyDisplay) {
-                keyDisplay.up('KeyR');
+                keyDisplay.up('KeyE');
             }
         }
     } else {
         if (keyDisplay) {
-            keyDisplay.up('KeyR');
+            keyDisplay.up('KeyE');
         }
     }
 
@@ -350,13 +372,6 @@ function animate() {
     renderer.render(scene, camera);
     
     requestAnimationFrame(animate);
-
-    if (isKeyGrabbed && !window._levelSwitched) {
-        window._levelSwitched = true;
-        setTimeout(() => {
-            switchLevel();
-        }, 1000);
-    }
 }
 
 //loading of levels implementation
