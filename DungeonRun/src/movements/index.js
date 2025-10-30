@@ -130,7 +130,7 @@ document.addEventListener('keydown', (event) => {
     if (loader && loader.isLoading) return; //to prevent controls during loading
 
     // F1 key to toggle pause
-    if (event.key === 'F1') {
+    if (event.key === 'm') {
         event.preventDefault(); // Prevent browser's default F1 behavior
         togglePause();
         return;
