@@ -32,7 +32,14 @@ function settings() {
 }
 
 function credits() {
-    alert("Under development");
+    clickSound.play();
+    window.location.href = "./src/gameText/credits.html";
+}
+
+//adding the instructions code here
+function instructions(){
+    clickSound.play();
+    window.location.href = "./src/gameText/instructions.html";
 }
 
 // Background animation
