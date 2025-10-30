@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DungeonRun - Settings</title>
+    <link rel="stylesheet" href="instructions.css"> <!-- Reuse same styling -->
+</head>
+<body>
+    <div class="instructions-container">
+        <h1> Dungeon Run - Settings </h1>
+
+        <section>
+            <h2> Audio Settings </h2>
+
+            <label for="musicVolume"> Music Volume</label>
+            <input type="range" id="musicVolume" min="0" max="1" step="0.01">
+
+            <label for="soundVolume"> Sound Effects Volume</label>
+            <input type="range" id="soundVolume" min="0" max="1" step="0.01">
+
+            <button id="back-btn">Back to Main Menu</button>
+        </section>
+    </div>
+
+    <script>
+        // --- Initialize default values ---
+        const musicSlider = document.getElementById('musicVolume');
+        const soundSlider = document.getElementById('soundVolume');
+
+        // Get saved values from localStorage (or defaults)
+        const savedMusicVolume = localStorage.getItem('musicVolume') || 0.5;
+        const savedSoundVolume = localStorage.getItem('soundVolume') || 1.0;
+
+        musicSlider.value = savedMusicVolume;
+        soundSlider.value = savedSoundVolume;
+
+        // Create Audio object for background preview
+        const previewMusic = new Audio('../sounds/mainMenuSound.mp3');
+        previewMusic.loop = true;
+        previewMusic.volume = savedMusicVolume;
+        previewMusic.play().catch(() => {
+            console.log('Autoplay blocked. Waiting for user interaction.');
+        });
+
+        // Click sound preview
+        const clickSound = new Audio('../sounds/clickButton.mp3');
+        clickSound.volume = savedSoundVolume;
+
+        // --- Update settings when sliders move ---
+        musicSlider.addEventListener('input', () => {
+            const value = parseFloat(musicSlider.value);
+            localStorage.setItem('musicVolume', value);
+            previewMusic.volume = value;
+        });
+
+        soundSlider.addEventListener('input', () => {
+            const value = parseFloat(soundSlider.value);
+            localStorage.setItem('soundVolume', value);
+            clickSound.volume = value;
+            clickSound.play(); // play small click preview
+        });
+
+        // --- Back button ---
+        document.getElementById('back-btn').addEventListener('click', () => {
+            clickSound.play();
+            previewMusic.pause();
+            window.location.href = '../../index.html'; // back to main menu
+        });
+    </script>
+</body>
+</html>
