@@ -83,6 +83,19 @@ This document outlines the individuals involved in the "DungeonRun" project and 
   - Supports mouse sensitivity adjustment and rotation limits
   - Balanced smoothing (0.02) for responsive but smooth following
   
+ - **Chest Open/Close Logic**:
+   - Renamed the chest model's lid-related mesh parts so they can be targeted in code.
+   - Implemented `ChestController` to handle open/close interactions.
+   - Used rotation angles verified in Blender to animate the lid so it opens and closes correctly.
+   - Ensured the lid returns to a proper closed position and re-opens smoothly using the same hinge reference and angles.
+   - Files involved: `src/ChestController.js`, `src/ChestControllerClean.js`, and level integration via `src/levels/demoLevel.js`.
+ 
+ - **Chest Potions and Pickup**:
+   - Placed a potion artifact inside every chest when spawning in `src/levels/demoLevel.js`.
+   - Open/close chest with T (hold) or C (toggle) near a chest.
+   - Press R near an open chest to pick up the potion: it disappears and heals +10 HP.
+   - Uses the same R key as the floating key pickup for consistency.
+  
 
 ### 5. Naledi Mogomotsi
 - **Features Developed**:
