@@ -143,11 +143,6 @@ export class Inventory {
     this.inventoryBar = document.createElement('div');
     this.inventoryBar.classList.add('inventory-bar');
 
-    // Add title
-    // const title = document.createElement('div');
-    // title.classList.add('inventory-title');
-    // title.innerText = 'ARSENAL';
-    // this.inventoryBar.appendChild(title);
 
     for (let i = 0; i < this.maxSlots; i++) {
       const slot = document.createElement('div');
