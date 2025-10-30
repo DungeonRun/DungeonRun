@@ -71,6 +71,7 @@ export async function loadLevel2({
     scene.add(floor);
 
     //  Room Cube
+    /*
     const size = 30;
     const roomGeometry = new THREE.BoxGeometry(size, size, size);
     const roomMaterial = new THREE.MeshStandardMaterial({
@@ -94,13 +95,15 @@ export async function loadLevel2({
     wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z);
     wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z);
     wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half);
-    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);
+    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);*/
 
-    wallPlanes.forEach(wall => {
+    /*wallPlanes.forEach(wall => {
         wall.geometry.computeBoundsTree();
         scene.add(wall);
     });
-    const collidables = [...wallPlanes];
+    const collidables = [...wallPlanes];*/
+
+    const collidables = [];
 
     const playerSpawn = new THREE.Vector3(3, 3, 0);
 
@@ -119,6 +122,8 @@ export async function loadLevel2({
         new THREE.Vector3(-12, 0, 12),
         new THREE.Vector3(12, 0, 12)
     ];
+
+    const roomPosition = new THREE.Vector3(75, 0, -75);
 
     // Loading cover system from demoLevel.js
     const totalSteps = 1 + enemyConfigs.length + 1 + chestPositions.length;
@@ -198,6 +203,37 @@ export async function loadLevel2({
         if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
     });
 
+    // Level
+    const levelModelPromise = new Promise(resolve => {
+        const levelLoader = new GLTFLoader();
+        levelLoader.load(
+            '/src/levels/level2/level2.glb',
+            (gltf) => {
+                const levelModel = gltf.scene;
+                levelModel.position.copy(roomPosition);
+                levelModel.traverse(obj => {
+                    if (obj.isMesh) {
+                        obj.castShadow = true;
+                        obj.receiveShadow = true;
+                        if (obj.geometry && obj.geometry.computeBoundsTree) {
+                            obj.geometry.computeBoundsTree();
+                        }
+                    }
+                });
+                scene.add(levelModel);
+                updateLoader();
+                resolve(levelModel);
+            },
+            undefined,
+            (err) => {
+                console.warn('Could not load level model:', err);
+                // Resolve anyway so overall loading doesn't hang
+                updateLoader();
+                resolve();
+            }
+        );
+    });
+
     //  Key
     const keyLoadPromise = addGlowingKey(scene).then(({ animator, key }) => {
         key.visible = false;
@@ -258,7 +294,7 @@ export async function loadLevel2({
         });
     });
 
-    await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, ...chestPromises]);
+    await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, levelModelPromise, ...chestPromises]);
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {
