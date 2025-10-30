@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { UP, DOWN, LEFT, RIGHT, DIRECTIONS } from './utils.js';
+import { UP, DOWN, LEFT, RIGHT, DIRECTIONS } from '../view/keyDisplay.js';
 import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 
 class CharacterControls {

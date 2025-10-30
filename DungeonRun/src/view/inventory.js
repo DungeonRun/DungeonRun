@@ -17,7 +17,7 @@ export class Inventory {
 
     // === Inventory setup ===
     this.slots = [];
-    this.maxSlots = 5;
+    this.maxSlots = 2;
     this.selectedIndex = 0;
 
     this.items = ['sword', 'spell'];
@@ -36,6 +36,7 @@ export class Inventory {
 
       .inventory-bar {
         display: flex;
+        flex-direction: row;
         gap: 10px;
         background: rgba(20, 20, 20, 0.85);
         border: 3px solid #4b2e05;
@@ -43,6 +44,8 @@ export class Inventory {
         padding: 10px 20px;
         box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
         backdrop-filter: blur(6px);
+        flex-wrap: nowrap;
+        white-space: nowrap;
       }
 
       .inventory-slot {
@@ -57,6 +60,7 @@ export class Inventory {
         box-shadow: inset 0 0 8px #000;
         transition: transform 0.1s ease-in-out, border-color 0.2s, box-shadow 0.2s;
         position: relative;
+        flex-shrink: 0;
       }
 
       .inventory-slot:hover {
@@ -167,4 +171,10 @@ export class Inventory {
   getCooldown(idx) {
     return this.cooldowns[idx];
   }
+
+  remove() {
+        if (this.container && this.container.parentNode) {
+            this.container.parentNode.removeChild(this.container);
+        }
+    }
 }

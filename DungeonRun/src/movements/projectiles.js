@@ -91,9 +91,9 @@ export class ProjectileManager {
             }
 
             for (const enemy of this.enemies) {
-                if (!enemy.model) continue;
+                if (!enemy.enemyModel) continue;
                 const spellBox = new THREE.Box3().setFromObject(spell);
-                const enemyBox = new THREE.Box3().setFromObject(enemy.model);
+                const enemyBox = new THREE.Box3().setFromObject(enemy.enemyModel);
                 if (spellBox.intersectsBox(enemyBox)) {
                     enemy.health = Math.max(0, enemy.health - 40);
                     if (enemy.healthBar) enemy.healthBar.setHealth(enemy.health);
