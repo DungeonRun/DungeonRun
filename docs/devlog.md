@@ -18,6 +18,9 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 - I have implemented key-based animation triggers where pressing Space makes the avatar jump, F performs a punch, E swings a sword, R triggers a pickup action, T plays the open animation, G performs a push, and X plays the death animation (which will later be automated upon death).
 - I have deleted the previous models for enemies and added new ones
 - Enemy avatars can follow you and attack you
+- Added better animations based on the Main screen login ui across Credits,Instructions and settings and across game center
+- Added gameover sound within the game and plays when the game over page loads
+- 
 
 ### 2. Niel Grobler
 - **Features Developed**: 
