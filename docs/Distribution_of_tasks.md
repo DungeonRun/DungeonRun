@@ -1,6 +1,6 @@
 # Meeting Minutes  
 **Date:** 19 September 2025  
-**Platform:**Discord  
+**Platform:** Discord  
 
 ---
 
