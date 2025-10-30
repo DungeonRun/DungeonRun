@@ -18,14 +18,18 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 - I have implemented key-based animation triggers where pressing Space makes the avatar jump, F performs a punch, E swings a sword, R triggers a pickup action, T plays the open animation, G performs a push, and X plays the death animation (which will later be automated upon death).
 - I have deleted the previous models for enemies and added new ones
 - Enemy avatars can follow you and attack you
+- Added better animations based on the Main screen login ui across Credits,Instructions and settings and across game center
+- Added gameover sound within the game and plays when the game over page loads
+- 
 
 ### 2. Niel Grobler
 - **Features Developed**: 
-  - added health, damage, and the player being able to attack with swords or spells
-  - implemented level loading (with additional shaders), game overs, and collision
-  - adjusted lighting
+  - added health, damage, and the player being able to attack with punching, swords or spells (with a custom shader for projectiles)
+  - implemented level loading functionality and loading screen, game overs, and collision(?)
+  - large codebase refactoring and fixing bugs in other's features
+  - bunch of commits i can't name, check commit logs
   
-- **Notes**: left off animations and iamges for other members, just know that 1 is sword (attacks in front) and 2 is spells
+- **Notes**: 
 - **Additional Info**: 
 
 ### 3. Ntokozo Skosana
@@ -82,6 +86,19 @@ This document outlines the individuals involved in the "DungeonRun" project and 
   - Look-ahead offset: (0, 1.8, 2) for better visibility
   - Supports mouse sensitivity adjustment and rotation limits
   - Balanced smoothing (0.02) for responsive but smooth following
+  
+ - **Chest Open/Close Logic**:
+   - Renamed the chest model's lid-related mesh parts so they can be targeted in code.
+   - Implemented `ChestController` to handle open/close interactions.
+   - Used rotation angles verified in Blender to animate the lid so it opens and closes correctly.
+   - Ensured the lid returns to a proper closed position and re-opens smoothly using the same hinge reference and angles.
+   - Files involved: `src/ChestController.js`, `src/ChestControllerClean.js`, and level integration via `src/levels/demoLevel.js`.
+ 
+ - **Chest Potions and Pickup**:
+   - Placed a potion artifact inside every chest when spawning in `src/levels/demoLevel.js`.
+   - Open/close chest with T (hold) or C (toggle) near a chest.
+   - Press R near an open chest to pick up the potion: it disappears and heals +10 HP.
+   - Uses the same R key as the floating key pickup for consistency.
   
 
 ### 5. Naledi Mogomotsi

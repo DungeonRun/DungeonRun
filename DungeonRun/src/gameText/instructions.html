@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DungeonRun - Instructions</title>
+    <link rel="stylesheet" href="instructions.css">
+</head>
+<body>
+    <div class="instructions-container">
+        <h1> Dungeon Run - Instructions</h1>
+
+        <section>
+            <h2> Objective</h2>
+            <p>Your goal is to navigate through the dungeon, defeat enemies, collect key, and survive to reach the final level.</p>
+        </section>
+
+        <section>
+            <h2> Controls</h2>
+            <ul>
+                <li><b>W / A / S / D</b> – Move around</li>
+                <li><b>shift</b>To Run around the map</li>
+                <li><b>Space</b> - Jump</li>
+                <li><b>F</b> - Punch</li>
+                <li><b>E</b> - Swing Sword</li>
+                <li><b>R</b> - Pick Up</li>
+                <li><b>T</b> - Open  Chest</li>
+                <li><b>G</b> - Push Object</li>
+                <li><b>X</b> - Death Animation (Auto on death later)</li>
+                <li><b>E</b> – Fight / Pick up key</li>
+                <li><b>Q</b> – Switch equipped item</li>
+                <li><b>M</b> – Open Pause Menu</li>
+                <li><b>1 / 2</b> – Select item (Sword or Spell)</li>
+                <li><b>H</b> – Take damage (for testing)</li>
+            </ul>
+        </section>
+
+        <section>
+            <h2>Gameplay Tips</h2>
+            <ul>
+                <li>Defeat enemies to unlock paths.</li>
+                <li>Keep an eye on your health bar.</li>
+                <li>Time your attacks carefully — enemies can hit back!</li>
+                <li>Collect  key after defeating all enemies to advance to the next level.</li>
+            </ul>
+        </section>
+
+        <button id="back-btn"> Back to Main Menu</button>
+    </div>
+
+    <script>
+        document.getElementById('back-btn').addEventListener('click', () => {
+            window.location.href = '../../index.html'; // go back to main menu
+        });
+    </script>
+
+    <script>
+                window.addEventListener('DOMContentLoaded', () => {
+            const shouldPlay = sessionStorage.getItem('playMusic');
+            if (shouldPlay === 'true') {
+                const bgMusic = new Audio('../sounds/mainMenuSound.mp3');
+                bgMusic.loop = true;
+                bgMusic.volume = 0.5;
+                bgMusic.play().catch(err => console.log('Music blocked until user interacts.'));
+            }
+        });
+
+    </script>
+</body>
+</html>

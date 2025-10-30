@@ -8,8 +8,8 @@ export class Inventory {
     // === Create container dynamically ===
     this.container = document.createElement('div');
     this.container.id = 'inventory-container';
-    this.container.style.position = 'absolute';
-    this.container.style.bottom = '20px';
+    this.container.style.position = 'fixed';
+    this.container.style.bottom = '32px';
     this.container.style.left = '50%';
     this.container.style.transform = 'translateX(-50%)';
     this.container.style.zIndex = '100';
@@ -36,63 +36,109 @@ export class Inventory {
   injectStyles() {
     const style = document.createElement('style');
     style.innerHTML = `
-      @import url('https://fonts.googleapis.com/css2?family=MedievalSharp&display=swap');
-
       .inventory-bar {
         display: flex;
         flex-direction: row;
-        gap: 10px;
-        background: rgba(20, 20, 20, 0.85);
-        border: 3px solid #4b2e05;
-        border-radius: 12px;
-        padding: 10px 20px;
-        box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
-        backdrop-filter: blur(6px);
-        flex-wrap: nowrap;
-        white-space: nowrap;
+        gap: 15px;
+        background: rgba(20, 20, 20, 0.9);
+        border: 3px solid #8b0000;
+        border-radius: 15px;
+        padding: 15px 30px;
+        box-shadow: 0 0 25px rgba(139, 0, 0, 0.7), inset 0 0 20px rgba(0, 0, 0, 0.9);
+        backdrop-filter: blur(8px);
+        align-items: center;
+      }
+
+      .inventory-title {
+        color: #ff4500;
+        font-size: 18px;
+        font-weight: bold;
+        letter-spacing: 3px;
+        margin-right: 15px;
+        text-shadow: 0 0 10px #ff0000, 0 0 15px #8b0000;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        user-select: none;
       }
 
       .inventory-slot {
-        width: 64px;
-        height: 64px;
-        border: 2px solid #7a5c2f;
-        background: radial-gradient(circle at center, #2b2b2b 0%, #1a1a1a 100%);
+        width: 65px;
+        height: 65px;
+        border: 3px solid #4a0000;
+        background: linear-gradient(135deg, #1a0000 0%, #000 100%);
         display: flex;
         align-items: center;
         justify-content: center;
-        border-radius: 8px;
-        box-shadow: inset 0 0 8px #000;
-        transition: transform 0.1s ease-in-out, border-color 0.2s, box-shadow 0.2s;
+        border-radius: 10px;
+        box-shadow: inset 0 3px 10px rgba(0, 0, 0, 0.95);
+        transition: all 0.2s ease;
         position: relative;
-        flex-shrink: 0;
+        cursor: pointer;
       }
 
       .inventory-slot:hover {
         transform: scale(1.1);
+        border-color: #660000;
+        box-shadow: 0 0 15px rgba(139, 0, 0, 0.6), inset 0 3px 10px rgba(0, 0, 0, 0.95);
       }
 
       .inventory-slot.selected {
-        border-color: #d4af37;
-        box-shadow: 0 0 12px #d4af37, inset 0 0 8px #000;
+        border-color: #ff4500;
+        box-shadow: 0 0 20px rgba(255, 69, 0, 0.9), inset 0 0 12px rgba(255, 0, 0, 0.4);
+        animation: selectedPulse 1.5s ease-in-out infinite;
+      }
+
+      @keyframes selectedPulse {
+        0%, 100% { 
+          box-shadow: 0 0 20px rgba(255, 69, 0, 0.9), inset 0 0 12px rgba(255, 0, 0, 0.4);
+        }
+        50% { 
+          box-shadow: 0 0 30px rgba(255, 69, 0, 1), inset 0 0 18px rgba(255, 0, 0, 0.6);
+        }
       }
 
       .item-img {
-        width: 48px;
-        height: 48px;
+        width: 50px;
+        height: 50px;
         object-fit: contain;
         image-rendering: pixelated;
         pointer-events: none;
+        filter: drop-shadow(0 0 5px rgba(255, 69, 0, 0.3));
+      }
+
+      .inventory-slot.selected .item-img {
+        filter: drop-shadow(0 0 10px rgba(255, 69, 0, 0.7));
       }
 
       .slot-label {
         position: absolute;
-        bottom: 2px;
-        right: 6px;
-        color: #c2b280;
-        font-size: 12px;
-        font-family: monospace;
-        text-shadow: 0 0 3px #000;
+        top: 3px;
+        right: 5px;
+        color: #ff4500;
+        font-size: 14px;
+        font-weight: bold;
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        text-shadow: 0 0 6px #ff0000, 0 0 3px #000;
         user-select: none;
+        background: rgba(0, 0, 0, 0.7);
+        border-radius: 50%;
+        width: 22px;
+        height: 22px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        border: 1px solid #660000;
+      }
+
+      .cooldown-overlay {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 0%;
+        background: rgba(139, 0, 0, 0.8);
+        border-radius: 7px;
+        transition: height 0.1s linear;
+        pointer-events: none;
       }
     `;
     document.head.appendChild(style);
@@ -101,6 +147,7 @@ export class Inventory {
   createInventoryUI() {
     this.inventoryBar = document.createElement('div');
     this.inventoryBar.classList.add('inventory-bar');
+
 
     for (let i = 0; i < this.maxSlots; i++) {
       const slot = document.createElement('div');
@@ -199,6 +246,15 @@ export class Inventory {
         slot.element.classList.remove('selected');
       }
     });
+  }
+
+  // Visual cooldown indicator
+  updateCooldownVisual(idx, progress) {
+    if (this.slots[idx] && this.slots[idx].cooldownOverlay) {
+      // progress should be 0 (ready) to 1 (full cooldown)
+      const height = Math.min(100, Math.max(0, progress * 100));
+      this.slots[idx].cooldownOverlay.style.height = `${height}%`;
+    }
   }
 
   //might be redundant, we'll see

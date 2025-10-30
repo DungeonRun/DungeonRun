@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { ChestController } from '../ChestController.js';
 
 const scene = new THREE.Scene();
 
@@ -36,4 +37,18 @@ const renderer = new THREE.WebGLRenderer({
 
 renderer.setSize(window.innerWidth, window.innerHeight)
 
-renderer.render(scene, camera)
+// Animation loop
+const clock = new THREE.Clock();
+
+function animate() {
+    requestAnimationFrame(animate);
+    
+    const deltaTime = clock.getDelta();
+    
+    // Update chest animations
+    ChestController.update(deltaTime);
+    
+    renderer.render(scene, camera);
+}
+
+animate();
