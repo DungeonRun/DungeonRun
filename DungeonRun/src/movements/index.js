@@ -14,6 +14,7 @@ import { Loader } from '../load/load.js';
 import { boxIntersectsMeshBVH } from '../levels/demoLevel.js';
 import { loadLevel2 } from '../levels/level2.js';
 import { loadLevel3 } from '../levels/level3.js';
+import { PauseMenuUI } from '../view/pauseMenuUI.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -32,6 +33,10 @@ let inventory;
 
 // Health
 let playerHealthBar;
+
+// Pause Menu UI
+let pauseMenuUI;
+let isPaused = false;
 
 // Camera setup
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
@@ -87,6 +92,10 @@ function clearScene() {
     if (gameOverUI) {
         gameOverUI.remove();
     }
+    if (pauseMenuUI) {
+        pauseMenuUI.remove();
+    }
+    isPaused = false; // Reset pause state
 }
 
 // Level loading
@@ -117,6 +126,7 @@ async function loadLevel(levelLoader) {
     //show UI
     playerHealthBar = new PlayerHealthBarUI({ maxHealth: 100 });
     gameOverUI = new GameOverUI();
+    pauseMenuUI = new PauseMenuUI();
     inventory = new Inventory();
     keyDisplayQueue = new KeyDisplay();
 
@@ -128,6 +138,16 @@ const keysPressed = {};
 
 document.addEventListener('keydown', (event) => {
     if (loader && loader.isLoading) return; //to prevent controls during loading
+
+    // F1 key to toggle pause
+    if (event.key === 'F1') {
+        event.preventDefault(); // Prevent browser's default F1 behavior
+        togglePause();
+        return;
+    }
+
+     // Prevent all other inputs when paused
+    if (isPaused) return;
 
     keysPressed[event.code] = true;
     keyDisplayQueue.down(event.code); // Use event.code for consistency
@@ -168,7 +188,7 @@ document.addEventListener('keydown', (event) => {
 }, false);
 
 document.addEventListener('keyup', (event) => {
-     if (loader && loader.isLoading) return;
+     if (loader && loader.isLoading || isPaused) return;
 
     keysPressed[event.code] = false;
     keyDisplayQueue.up(event.code);
@@ -224,117 +244,164 @@ function swordAttack() {
     });
 }
 
+function togglePause() {
+    if (isGameOver) return; // Can't pause if game is over
+    
+    isPaused = !isPaused;
+    
+    if (isPaused) {
+
+        // Clear all active keypresses when pausing
+        Object.keys(keysPressed).forEach(key => {
+            keysPressed[key] = false;
+        });
+        
+        // Exit pointer lock when pausing
+        if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
+            document.exitPointerLock();
+        }
+        
+        pauseMenuUI.show(
+            // Continue callback
+            () => {
+                isPaused = false;
+            },
+            // Restart callback
+            () => {
+                isPaused = false;
+                isGameOver = false;
+                window._levelSwitched = false;
+                
+                // Determine which level to restart
+                let levelToLoad = loadDemoLevel;
+                if (currentLevel === 2) levelToLoad = loadLevel2;
+                else if (currentLevel === 3) levelToLoad = loadLevel3;
+                
+                loadLevel(levelToLoad);
+            }
+        );
+    } else {
+        pauseMenuUI.hide();
+    }
+}
+
 // Animation loop
 const clock = new THREE.Clock();
 function animate() {
+    // Always get delta to prevent time accumulation
     const mixerUpdateDelta = clock.getDelta();
 
+    // Handle loading screen
     if (loader && loader.isLoading) {
         loader.render();
         requestAnimationFrame(animate);
         return;
     }
 
-    if (characterControls) {
-        characterControls.update(mixerUpdateDelta, keysPressed);
+    // CRITICAL: Only update game logic when NOT paused
+    if (!isPaused) {
+        if (characterControls) {
+            characterControls.update(mixerUpdateDelta, keysPressed);
 
-        // Check for chest interaction (for Open animation)
-        if (keysPressed['KeyT'] && !isKeyGrabbed) {
-            const playerBox = new THREE.Box3().setFromObject(characterControls.model);
-            const nearChest = characterControls.collidables.some(mesh => {
-                if (mesh.name.includes('chest_collision')) {
-                    return boxIntersectsMeshBVH(playerBox, mesh);
+            // Check for chest interaction (for Open animation)
+            if (keysPressed['KeyT'] && !isKeyGrabbed) {
+                const playerBox = new THREE.Box3().setFromObject(characterControls.model);
+                const nearChest = characterControls.collidables.some(mesh => {
+                    if (mesh.name.includes('chest_collision')) {
+                        return boxIntersectsMeshBVH(playerBox, mesh);
+                    }
+                    return false;
+                });
+                if (nearChest) {
+                    characterControls.playOpen();
                 }
-                return false;
-            });
-            if (nearChest) {
-                characterControls.playOpen();
+            }
+
+            // Death animation on health <= 0
+            if (characterControls.health <= 0 && !isGameOver) {
+                characterControls.playDeath();
+                isGameOver = true; // Prevent repeated triggers
             }
         }
 
-        // Death animation on health <= 0
-        if (characterControls.health <= 0 && !isGameOver) {
-            characterControls.playDeath();
-            isGameOver = true; // Prevent repeated triggers
-        }
-    }
-
-    enemies.forEach(enemy => {
-        enemy.update(mixerUpdateDelta, characterControls);
-        if (enemy.healthBar) {
-            enemy.healthBar.setHealth(enemy.health);
-            enemy.healthBar.update(camera);
-        }
-    });
-
-    for (let i = enemies.length - 1; i >= 0; i--) {
-        const enemy = enemies[i];
-        if (enemy.health <= 0) {
-            scene.remove(enemy.enemyModel);
-            if (enemy.healthBar) enemy.healthBar.remove();
-            if (enemy.debugHelper) {
-                scene.remove(enemy.debugHelper);
-                enemy.debugHelper = null;
+        enemies.forEach(enemy => {
+            enemy.update(mixerUpdateDelta, characterControls);
+            if (enemy.healthBar) {
+                enemy.healthBar.setHealth(enemy.health);
+                enemy.healthBar.update(camera);
             }
-            enemies.splice(i, 1);
+        });
+
+        for (let i = enemies.length - 1; i >= 0; i--) {
+            const enemy = enemies[i];
+            if (enemy.health <= 0) {
+                scene.remove(enemy.enemyModel);
+                if (enemy.healthBar) enemy.healthBar.remove();
+                if (enemy.debugHelper) {
+                    scene.remove(enemy.debugHelper);
+                    enemy.debugHelper = null;
+                }
+                enemies.splice(i, 1);
+            }
         }
-    }
 
-    if (keyAnimator) keyAnimator();
+        if (keyAnimator) keyAnimator();
 
-    if (keyObject && !isKeyGrabbed && characterControls) {
-        const playerPos = characterControls.model.position;
-        const distance = playerPos.distanceTo(keyObject.position);
-        if (distance < 3) {
-            keyDisplayQueue.down('KeyR');
-            if (distance < 3 && distance > 2) {
-                console.log('Press R to grab the key!');
+        if (keyObject && !isKeyGrabbed && characterControls) {
+            const playerPos = characterControls.model.position;
+            const distance = playerPos.distanceTo(keyObject.position);
+            if (distance < 3) {
+                keyDisplayQueue.down('KeyR');
+                if (distance < 3 && distance > 2) {
+                    console.log('Press R to grab the key!');
+                }
+            } else {
+                keyDisplayQueue.up('KeyR');
             }
         } else {
             keyDisplayQueue.up('KeyR');
         }
-    } else {
-        keyDisplayQueue.up('KeyR');
-    }
 
-    projectileManager.enemies = enemies;
-    projectileManager.update(mixerUpdateDelta);
+        projectileManager.enemies = enemies;
+        projectileManager.update(mixerUpdateDelta);
 
-    if (thirdPersonCamera) {
-        thirdPersonCamera.Update(mixerUpdateDelta);
-    }
-
-    if (playerHealthBar && characterControls) {
-        playerHealthBar.setHealth(characterControls.health);
-    }
-
-    if (characterControls && characterControls.health <= 0 && !gameOverUI.isGameOver) {
-        if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
-            document.exitPointerLock();
+        if (thirdPersonCamera) {
+            thirdPersonCamera.Update(mixerUpdateDelta);
         }
-        const cameraPosition = camera.position.clone();
-        const cameraRotation = camera.rotation.clone();
-        if (characterControls.model) {
-            scene.remove(characterControls.model);
+
+        if (playerHealthBar && characterControls) {
+            playerHealthBar.setHealth(characterControls.health);
         }
-        gameOverUI.show(() => {
-            loadLevel(loadDemoLevel);
-        });
-        characterControls = null;
+
+        if (characterControls && characterControls.health <= 0 && !gameOverUI.isGameOver) {
+            if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
+                document.exitPointerLock();
+            }
+            const cameraPosition = camera.position.clone();
+            const cameraRotation = camera.rotation.clone();
+            if (characterControls.model) {
+                scene.remove(characterControls.model);
+            }
+            gameOverUI.show(() => {
+                loadLevel(loadDemoLevel);
+            });
+            characterControls = null;
+        }
+
+        if (debugMode) updateDebugHelpers();
+
+        if (isKeyGrabbed && !window._levelSwitched) {
+            window._levelSwitched = true;
+            setTimeout(() => {
+                switchLevel();
+            }, 1000);
+        }
     }
 
-    if (debugMode) updateDebugHelpers();
-
+    // ALWAYS render the scene (even when paused, so you can see the frozen game)
     renderer.render(scene, camera);
     
     requestAnimationFrame(animate);
-
-    if (isKeyGrabbed && !window._levelSwitched) {
-        window._levelSwitched = true;
-        setTimeout(() => {
-            switchLevel();
-        }, 1000);
-    }
 }
 
 //loading of levels implementation
