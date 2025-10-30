@@ -11,6 +11,7 @@ export async function loadLevel2({
     scene,
     renderer,
     camera,
+    loader,
     onPlayerLoaded,
     onEnemiesLoaded,
     onKeyLoaded
@@ -70,6 +71,7 @@ export async function loadLevel2({
     scene.add(floor);
 
     //  Room Cube
+    /*
     const size = 30;
     const roomGeometry = new THREE.BoxGeometry(size, size, size);
     const roomMaterial = new THREE.MeshStandardMaterial({
@@ -93,154 +95,206 @@ export async function loadLevel2({
     wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z);
     wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z);
     wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half);
-    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);
+    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);*/
 
-    wallPlanes.forEach(wall => {
+    /*wallPlanes.forEach(wall => {
         wall.geometry.computeBoundsTree();
         scene.add(wall);
     });
-    const collidables = [...wallPlanes];
+    const collidables = [...wallPlanes];*/
 
-    //  Player
-    new GLTFLoader().load(
-        '/src/animations/avatar/avatar2.glb',
-        function (gltf) {
-            const model = gltf.scene;
-            model.traverse(function (object) {
-                if (object.isMesh) {
-                    object.castShadow = true;
-                    object.name = 'player';
-                }
-            });
-            model.name = 'player';
+    const collidables = [];
 
-            //  Player point light
-            const playerLight = new THREE.PointLight(0xff7700, 15, 15);
-            playerLight.position.set(0, 3, 0);
-            model.add(playerLight);
+    const playerSpawn = new THREE.Vector3(3, 3, 0);
 
-            scene.add(model);
+    const enemyConfigs = [
+        { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
+        { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(-2, 4, -8), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(1, 6, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(2, 1, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(3, 7, -8), type: "boss", modelPath: "/src/animations/enemies/boss.glb" }
+    ];
 
-            const gltfAnimations = gltf.animations;
-            const mixer = new THREE.AnimationMixer(model);
-            const animationsMap = new Map();
-            gltfAnimations.filter(a => a.name !== 'TPose').forEach((a) => {
-                animationsMap.set(a.name, mixer.clipAction(a));
-            });
-
-            const thirdPersonCamera = new ThirdPersonCamera({
-                camera: camera,
-                target: model,
-                scene: scene
-            });
-
-            const characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle', collidables);
-
-            if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
-
-            //  Enemies add more per level
-            const enemies = [];
-            const enemyHealthBars = [];
-            const enemyConfigs = [
-                { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
-                { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
-                { pos: new THREE.Vector3(-2, 4, -8), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
-                { pos: new THREE.Vector3(1, 6, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
-                { pos: new THREE.Vector3(2, 1, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
-                { pos: new THREE.Vector3(3, 7, -8), type: "boss", modelPath: "/src/animations/enemies/boss.glb" }
-            ];
-
-            enemyConfigs.forEach(cfg => {
-                const enemy = new EnemyMovement(scene, cfg.modelPath, cfg.pos, cfg.type, (enemyModel) => {
-                    //  Enemy point light
-                    const enemyLight = new THREE.PointLight(0xff0000, 1, 4);
-                    enemyLight.position.set(0, 0, 0);
-                    enemyModel.add(enemyLight);
-
-                    // Optional glow effect (commented)
-                    /*
-                    const lightGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-                    const lightMaterial = new THREE.MeshBasicMaterial({
-                        color: 0xff0000,
-                        transparent: true,
-                        opacity: 0.6
-                    });
-                    const lightGlow = new THREE.Mesh(lightGeometry, lightMaterial);
-                    lightGlow.position.copy(enemyLight.position);
-                    enemyModel.add(lightGlow);
-                    */
-
-                    //  Enemy health bar   Niel please fix
-                    const bar = new EnemyHealthBar(enemyModel, { maxHealth: 100 });
-                    enemy.healthBar = bar;
-                    enemyHealthBars.push(bar);
-                }, collidables);
-
-                enemies.push(enemy);
-            });
-
-            if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
-        }
-    );
-
-    //  Key
-    addGlowingKey(scene).then(({ animator, key }) => {
-        if (onKeyLoaded) onKeyLoaded({ animator, key });
-    });
-
-    //  Treasure Chests
-    const chestLoader = new GLTFLoader();
-    const chestPositions = [  //alter these for level2
+    const chestPositions = [
         new THREE.Vector3(-12, 0, -12),
         new THREE.Vector3(12, 0, -12),
         new THREE.Vector3(-12, 0, 12),
         new THREE.Vector3(12, 0, 12)
     ];
 
-    chestPositions.forEach((position, index) => {
-        chestLoader.load(
-            '/src/models/treasure_chest.glb',
+    const roomPosition = new THREE.Vector3(75, 0, -75);
+
+    // Loading cover system from demoLevel.js
+    const totalSteps = 1 + enemyConfigs.length + 1 + chestPositions.length;
+    let completedSteps = 0;
+    function updateLoader() {
+        if (loader) loader.updateProgress((++completedSteps / totalSteps) * 100);
+    }
+
+    //  Player
+    let model;
+    const playerLoadPromise = new Promise(resolve => {
+        new GLTFLoader().load(
+            '/src/animations/avatar/avatar2.glb',
             function (gltf) {
-                const chest = gltf.scene.clone();
-                chest.position.copy(position);
-                chest.scale.set(1.0, 1.0, 1.0);
-
-                if (index === 1 || index === 3) {
-                    chest.rotation.y = Math.PI;
-                }
-
-                chest.traverse(function (object) {
+                model = gltf.scene;
+                model.traverse(function (object) {
                     if (object.isMesh) {
                         object.castShadow = true;
-                        object.receiveShadow = true;
+                        object.name = 'player';
                     }
                 });
+                model.name = 'player';
 
-                chest.name = `treasure_chest_${index}`;
-                scene.add(chest);
+                const playerLight = new THREE.PointLight(0xff7700, 15, 15);
+                playerLight.position.set(0, 0, 0);
+                model.add(playerLight);
 
-                const chestCollisionBox = new THREE.Mesh(
-                    new THREE.BoxGeometry(2, 2, 2),
-                    new THREE.MeshBasicMaterial({ visible: false })
-                );
-                chestCollisionBox.position.copy(position);
-                chestCollisionBox.position.y = 1;
-                chestCollisionBox.name = `chest_collision_${index}`;
-                chestCollisionBox.geometry.computeBoundsTree();
-                scene.add(chestCollisionBox);
+                scene.add(model);
 
-                collidables.push(chestCollisionBox);
+                const gltfAnimations = gltf.animations;
+                const mixer = new THREE.AnimationMixer(model);
+                const animationsMap = new Map();
+                gltfAnimations.filter(a => a.name !== 'TPose').forEach((a) => {
+                    animationsMap.set(a.name, mixer.clipAction(a));
+                });
 
-                console.log(`Treasure chest ${index + 1} added at position:`, position);
-            },
-            function (progress) {
-                console.log('Loading treasure chest progress:', (progress.loaded / progress.total * 100) + '%');
-            },
-            function (error) {
-                console.error('Error loading treasure chest:', error);
+                const thirdPersonCamera = new ThirdPersonCamera({
+                    camera: camera,
+                    target: model,
+                    scene: scene
+                });
+
+                const characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle', collidables);
+
+                if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
+                updateLoader();
+                resolve();
             }
         );
     });
+
+    // Enemies (requires player since it for some reason requires the playerModel in the constructor)
+    const enemies = [];
+    const enemyHealthBars = [];
+    const enemiesLoadPromise = playerLoadPromise.then(async () => {
+        const enemyLoadPromises = enemyConfigs.map((cfg, index) => 
+            new Promise(resolve => {
+                const enemy = new EnemyMovement(scene, cfg.modelPath, cfg.pos, cfg.type, (enemyModel) => {
+                        const enemyLight = new THREE.PointLight(0xff0000, 1, 4);
+                        enemyLight.position.set(0, 0, 0);
+                        enemyModel.add(enemyLight);
+
+                        const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
+                        enemy.healthBar = bar;
+                        enemyHealthBars.push(bar);
+
+                        updateLoader();
+                        resolve(enemy);
+                    }, collidables);
+                
+                enemies.push(enemy);
+            })
+        );
+
+        await Promise.all(enemyLoadPromises);
+        
+        if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
+    });
+
+    // Level
+    const levelModelPromise = new Promise(resolve => {
+        const levelLoader = new GLTFLoader();
+        levelLoader.load(
+            '/src/levels/level2/level2.glb',
+            (gltf) => {
+                const levelModel = gltf.scene;
+                levelModel.position.copy(roomPosition);
+                levelModel.traverse(obj => {
+                    if (obj.isMesh) {
+                        obj.castShadow = true;
+                        obj.receiveShadow = true;
+                        if (obj.geometry && obj.geometry.computeBoundsTree) {
+                            obj.geometry.computeBoundsTree();
+                        }
+                    }
+                });
+                scene.add(levelModel);
+                updateLoader();
+                resolve(levelModel);
+            },
+            undefined,
+            (err) => {
+                console.warn('Could not load level model:', err);
+                // Resolve anyway so overall loading doesn't hang
+                updateLoader();
+                resolve();
+            }
+        );
+    });
+
+    //  Key
+    const keyLoadPromise = addGlowingKey(scene).then(({ animator, key }) => {
+        key.visible = false;
+        if (onKeyLoaded) onKeyLoaded({ animator, key });
+        updateLoader();
+        return { animator, key };
+    });
+
+    //  Treasure Chests 
+    const chestLoader = new GLTFLoader();
+    const chestPromises = chestPositions.map((position, index) => {
+        return new Promise(resolve => {
+            chestLoader.load(
+                '/src/models/treasure_chest.glb',
+                function (gltf) {
+                    const chest = gltf.scene.clone();
+                    chest.position.copy(position);
+                    chest.scale.set(1.0, 1.0, 1.0);
+                    
+                    if (index === 1 || index === 3) {
+                        chest.rotation.y = Math.PI;
+                    }
+                    
+                    chest.traverse(function (object) {
+                        if (object.isMesh) {
+                            object.castShadow = true;
+                            object.receiveShadow = true;
+                        }
+                    });
+                    
+                    chest.name = `treasure_chest_${index}`;
+                    scene.add(chest);
+                    
+                    const chestCollisionBox = new THREE.Mesh(
+                        new THREE.BoxGeometry(2, 2, 2),
+                        new THREE.MeshBasicMaterial({ visible: false })
+                    );
+                    chestCollisionBox.position.copy(position);
+                    chestCollisionBox.position.y = 1;
+                    chestCollisionBox.name = `chest_collision_${index}`;
+                    chestCollisionBox.geometry.computeBoundsTree();
+                    scene.add(chestCollisionBox);
+                    
+                    collidables.push(chestCollisionBox);
+                    
+                    console.log(`Treasure chest ${index + 1} added at position:`, position);
+                    updateLoader();
+                    resolve();
+                },
+                function (progress) {
+                    //console.log('Loading treasure chest progress:', (progress.loaded / progress.total * 100) + '%');
+                },
+                function (error) {
+                    console.error('Error loading treasure chest:', error);
+                    resolve(); // Still resolve to avoid blocking the Promise.all
+                }
+            );
+        });
+    });
+
+    await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, levelModelPromise, ...chestPromises]);
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {

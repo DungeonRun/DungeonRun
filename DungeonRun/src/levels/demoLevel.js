@@ -140,7 +140,7 @@ export async function loadDemoLevel({
                 model.name = 'player';
 
                 const playerLight = new THREE.PointLight(0xff7700, 15, 15); 
-                playerLight.position.copy(playerSpawn);
+                playerLight.position.set(0, 0, 0);
                 model.add(playerLight);
 
                 scene.add(model);
@@ -170,45 +170,34 @@ export async function loadDemoLevel({
     // Enemies (requires player since it for some reason requires the playerModel in the constructor)
     const enemies = [];
     const enemyHealthBars = [];
-    const enemiesLoadPromise = playerLoadPromise.then(async (playerData) => {
-        for (const cfg of enemyConfigs) {
-            await new Promise(resolve => {
-                const enemy = new EnemyMovement(scene, cfg.modelPath, cfg.pos, cfg.type, (enemyModel) => {
-                    //lighting effect
-                    const enemyLight = new THREE.PointLight(0xff0000, 1, 4); // Red light with 5 unit radius
-                    enemyLight.position.set(0, 0, 0); // Position above enemy center
-                    enemyModel.add(enemyLight);
+    const enemiesLoadPromise = playerLoadPromise.then(async () => {
+        const enemyLoadPromises = enemyConfigs.map((cfg, index) => 
+            new Promise(resolve => {
+                const enemy = new EnemyMovement(scene, cfg.modelPath, cfg.pos,cfg.type,  (enemyModel) => {
+                        const enemyLight = new THREE.PointLight(0xff0000, 1, 4);
+                        enemyLight.position.set(0, 0, 0);
+                        enemyModel.add(enemyLight);
 
-                    // Optional glow effect (commented)
-                    /*
-                    const lightGeometry = new THREE.SphereGeometry(0.3, 8, 8);
-                    const lightMaterial = new THREE.MeshBasicMaterial({
-                        color: 0xff0000,
-                        transparent: true,
-                        opacity: 0.6
-                    });
-                    const lightGlow = new THREE.Mesh(lightGeometry, lightMaterial);
-                    lightGlow.position.copy(enemyLight.position);
-                    enemyModel.add(lightGlow);
-                    */
+                        const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
+                        enemy.healthBar = bar;
+                        enemyHealthBars.push(bar);
 
-                    //  Enemy health bar   Niel please fix
-                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
-                    enemy.healthBar = bar;
-                    enemyHealthBars.push(bar);
-
-                    updateLoader();
-                    resolve();
-                }, collidables);
-
+                        updateLoader();
+                        resolve(enemy);
+                    }, collidables);
+                
                 enemies.push(enemy);
-            });
-        };
+            })
+        );
+
+        await Promise.all(enemyLoadPromises);
+        
         if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
     });
 
     //  Key
     const keyLoadPromise = addGlowingKey(scene).then(({ animator, key }) => {
+        key.visible = false;
         if (onKeyLoaded) onKeyLoaded({ animator, key });
         updateLoader();
         return { animator, key };
@@ -256,7 +245,7 @@ export async function loadDemoLevel({
                     resolve();
                 },
                 function (progress) {
-                    console.log('Loading treasure chest progress:', (progress.loaded / progress.total * 100) + '%');
+                    //console.log('Loading treasure chest progress:', (progress.loaded / progress.total * 100) + '%');
                 },
                 function (error) {
                     console.error('Error loading treasure chest:', error);
