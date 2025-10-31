@@ -20,6 +20,13 @@ export async function loadLevel3({
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
+    function deferComputeBoundsTree(geometry) {
+        if (!geometry || !geometry.computeBoundsTree) return;
+        const fn = () => { try { geometry.computeBoundsTree(); } catch (e) { console.warn('computeBoundsTree failed', e); } };
+        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(fn);
+        else setTimeout(fn, 0);
+    }
+
     //  Ambient and Directional Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.3));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
@@ -70,6 +77,12 @@ export async function loadLevel3({
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
+    // include floor for collision checks
+    floor.name = 'ground';
+    // prefer BVH per-surface collision for the floor
+    floor.userData.staticCollision = true;
+    if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
+
     //  Room Cube
     const size = 30;
     const roomGeometry = new THREE.BoxGeometry(size, size, size);
@@ -97,12 +110,15 @@ export async function loadLevel3({
     wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);
 
     wallPlanes.forEach(wall => {
-        wall.geometry.computeBoundsTree();
+        // mark wall planes as static collision geometry and defer BVH building when available
+        wall.userData.staticCollision = true;
+        if (wall.geometry && wall.geometry.computeBoundsTree) deferComputeBoundsTree(wall.geometry);
         scene.add(wall);
     });
     const collidables = [...wallPlanes];
+    collidables.push(floor);
 
-    const playerSpawn = new THREE.Vector3(0, -3, 0);
+    const playerSpawn = new THREE.Vector3(0, 1, 0);
 
     const enemyConfigs = [
         { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
@@ -134,6 +150,7 @@ export async function loadLevel3({
             '/src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
+                model.position.copy(playerSpawn);
                 model.traverse(function (object) {
                     if (object.isMesh) {
                         object.castShadow = true;
@@ -238,10 +255,11 @@ export async function loadLevel3({
                     chestCollisionBox.position.copy(position);
                     chestCollisionBox.position.y = 1;
                     chestCollisionBox.name = `chest_collision_${index}`;
-                    chestCollisionBox.geometry.computeBoundsTree();
+                    // Keep this as a chest trigger only. Do NOT mark it as staticCollision
+                    // or add it to `collidables` so it doesn't block player movement.
+                    chestCollisionBox.userData.isChestTrigger = true;
                     scene.add(chestCollisionBox);
-                    
-                    collidables.push(chestCollisionBox);
+                    // intentionally not added to `collidables`
                     
                     console.log(`Treasure chest ${index + 1} added at position:`, position);
                     updateLoader();

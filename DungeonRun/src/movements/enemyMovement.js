@@ -131,6 +131,11 @@ export class EnemyMovement {
           this.onModelLoaded(this.enemyModel);
         }
 
+        // cache a radius for fast collision checks (approximate)
+        const maxDim = Math.max(size.x, size.y, size.z);
+        this.radius = maxDim * 0.5;
+        this.enemyModel.userData.radius = this.radius;
+
         if (this.debug) console.log(`${this.type} model loaded successfully`);
       },
       undefined,
