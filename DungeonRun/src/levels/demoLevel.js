@@ -7,6 +7,8 @@ import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { CharacterControls } from '../movements/characterControls.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { EnemyHealthBar } from '../view/enemyHealthBar.js';
+import { soundManager } from '../sounds/soundManger.js'; 
+
 
 export async function loadDemoLevel({
     scene,
@@ -49,6 +51,12 @@ export async function loadDemoLevel({
     dirLight.shadow.mapSize.width = 4096;
     dirLight.shadow.mapSize.height = 4096;
     scene.add(dirLight);
+
+    //  Background Music - Use sound manager
+    const level1Music = soundManager.playLevelMusic('../sounds/level1.mp3');
+    
+    // Store reference in scene for cleanup if needed
+    scene.userData.levelMusic = level1Music;
 
     //  Floor
     const textureLoader = new THREE.TextureLoader();
@@ -338,6 +346,11 @@ export async function loadDemoLevel({
     await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, ...chestPromises]);
     
     console.log(`\n✓ Level loaded with ${ChestController.chests.length} chests`);
+}
+
+// MOVE THIS FUNCTION OUTSIDE OF loadDemoLevel - it should be at the module level
+export function cleanupDemoLevel() {
+    soundManager.stopCurrentMusic();
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {

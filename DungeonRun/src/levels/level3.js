@@ -6,6 +6,7 @@ import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { CharacterControls } from '../movements/characterControls.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { EnemyHealthBar } from '../view/enemyHealthBar.js';
+import { soundManager } from '../sounds/soundManger.js'; // FIXED PATH - removed extra 's'
 
 export async function loadLevel3({
     scene,
@@ -41,6 +42,12 @@ export async function loadLevel3({
     dirLight.shadow.mapSize.width = 4096;
     dirLight.shadow.mapSize.height = 4096;
     scene.add(dirLight);
+
+    //  Background Music - Use sound manager (FIXED: changed to level3.mp3)
+    const level3Music = soundManager.playLevelMusic('../sounds/level3.mp3');
+    
+    // Store reference in scene for cleanup if needed
+    scene.userData.levelMusic = level3Music;
 
     //  Floor
     const textureLoader = new THREE.TextureLoader();
@@ -277,6 +284,11 @@ export async function loadLevel3({
     });
 
     await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, ...chestPromises]);
+}
+
+// Cleanup function to stop level music when leaving level
+export function cleanupLevel3() {
+    soundManager.stopCurrentMusic();
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {
