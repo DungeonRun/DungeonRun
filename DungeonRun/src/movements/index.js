@@ -5,9 +5,9 @@ import { Inventory } from '../view/inventory.js';
 import { ProjectileManager } from './projectiles.js';
 import { GameOverUI } from '../view/gameOverUI.js';
 import { Loader } from '../load/load.js';
-import { loadDemoLevel, boxIntersectsMeshBVH } from '../levels/demoLevel.js';
-import { loadLevel2 } from '../levels/level2.js';
-import { loadLevel3 } from '../levels/level3.js';
+import { loadDemoLevel, boxIntersectsMeshBVH, cleanupDemoLevel } from '../levels/demoLevel.js';
+import { loadLevel2, cleanupLevel2 } from '../levels/level2.js'; // ADD CLEANUP IMPORT
+import { loadLevel3, cleanupLevel3 } from '../levels/level3.js'; // ADD CLEANUP IMPORT
 import { PauseMenuUI } from '../view/pauseMenuUI.js';
 import { GameTimerUI } from '../view/timerUI.js';
 import { ChestController } from '../ChestController.js';
@@ -164,11 +164,31 @@ function clearScene() {
     if (keyDisplay) keyDisplay.remove();
 }
 
+// === Cleanup Current Level ===
+function cleanupCurrentLevel() {
+    switch (currentLevel) {
+        case 1:
+            cleanupDemoLevel();
+            break;
+        case 2:
+            cleanupLevel2();
+            break;
+        case 3:
+            cleanupLevel3();
+            break;
+        default:
+            cleanupDemoLevel();
+    }
+    console.log(`✓ Cleaned up Level ${currentLevel}`);
+}
+
 // === Load Level ===
 async function loadLevel(levelLoader, levelName = '') {
     loader = new Loader(scene, camera, renderer, levelName);
     loader.show();
 
+    // ⚠️ CLEANUP BEFORE LOADING NEW LEVEL ⚠️
+    cleanupCurrentLevel();
     clearScene();
 
     await levelLoader({
@@ -292,16 +312,6 @@ document.addEventListener('keydown', (event) => {
 
     // Player attack / Key pickup (KeyE)
     if (event.code === 'KeyE' && characterControls && firstPress) {
-        /*// If there's a visible key nearby, prioritize pickup and don't attack || swallowing my pride and keeping picking up key at r
-        if (keyObject && !isKeyGrabbed && keyObject.visible) {
-            const playerPos = characterControls.model.position;
-            const keyPos = keyObject.position;
-            const distance = playerPos.distanceTo(keyPos);
-            if (distance < 1.0) {
-                grabKey();
-                return; // don't proceed to attack
-            }
-        }*/
         playerAttack();
     }
 
@@ -474,21 +484,6 @@ function spawnAttackHitbox(type) {
     }, removeMs);
 }
 
-// Animation loop
-/* old code for animation/attack
-    const playerPos = characterControls.model.position.clone();
-    const forward = new THREE.Vector3(0, 0.5, -0.33).applyQuaternion(characterControls.model.quaternion);
-    const hitboxCenter = playerPos.clone().add(forward.multiplyScalar(2));
-    const hitbox = new THREE.Box3().setFromCenterAndSize(hitboxCenter, new THREE.Vector3(1.5, 2, 1.4));
-
-    enemies.forEach(enemy => {
-        if (!enemy.enemyModel) return;
-        const enemyBox = new THREE.Box3().setFromObject(enemy.enemyModel);
-        if (hitbox.intersectsBox(enemyBox)) enemy.health = Math.max(0, enemy.health - 25);
-    });
-}
-*/
-
 // === Pause Menu Handling ===
 function togglePause() {
     if (isGameOver) return;
@@ -508,6 +503,8 @@ function togglePause() {
                 isPaused = false;
                 isGameOver = false;
                 window._levelSwitched = false;
+                // ⚠️ CLEANUP BEFORE RESTARTING LEVEL ⚠️
+                cleanupCurrentLevel();
                 let levelToLoad = currentLevel === 2 ? loadLevel2 : currentLevel === 3 ? loadLevel3 : loadDemoLevel;
                 loadLevel(levelToLoad);
             }
@@ -561,6 +558,8 @@ function animate() {
             },1000)
             
             gameOverUI.show(() => {
+                // ⚠️ CLEANUP BEFORE RESTARTING LEVEL ⚠️
+                cleanupCurrentLevel();
                 loadLevel(loadDemoLevel);
             });
             characterControls = null;
@@ -677,6 +676,9 @@ function animate() {
 async function switchLevel() {
     console.log(`Switching from Level ${currentLevel}...`);
 
+    // ⚠️ CLEANUP BEFORE SWITCHING LEVEL ⚠️
+    cleanupCurrentLevel();
+    
     currentLevel = currentLevel === 1 ? 2 : currentLevel === 2 ? 3 : 1;
     const nextLoader = currentLevel === 1 ? loadDemoLevel : currentLevel === 2 ? loadLevel2 : loadLevel3;
     await loadLevel(nextLoader, `LEVEL ${currentLevel}`);
