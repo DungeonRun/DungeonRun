@@ -72,16 +72,16 @@ export async function loadLevel2({
         map.anisotropy = renderer.capabilities.getMaxAnisotropy();
     });
 
-    const floor = new THREE.Mesh(geometry, material);
-    floor.receiveShadow = true;
-    floor.rotation.x = -Math.PI / 2;
-    scene.add(floor);
+    //const floor = new THREE.Mesh(geometry, material);
+    //floor.receiveShadow = true;
+    //floor.rotation.x = -Math.PI / 2;
+    //scene.add(floor);
 
     // ensure floor participates in collisions
-    floor.name = 'ground';
+    //floor.name = 'ground';
     // prefer BVH per-surface collision for the floor
-    floor.userData.staticCollision = true;
-    if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
+    //floor.userData.staticCollision = true;
+    //if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
 
     //  Room Cube
     /*
@@ -119,9 +119,9 @@ export async function loadLevel2({
 
     // ensure ground is included for collision checks
     const collidables = [];
-    collidables.push(floor);
+    //collidables.push(floor);
 
-    const playerSpawn = new THREE.Vector3(3, 3, 0);
+    const playerSpawn = new THREE.Vector3(0, 1, 0);
 
     const enemyConfigs = [
         { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
@@ -155,6 +155,7 @@ export async function loadLevel2({
             '/src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
+                model.position.copy(playerSpawn);
                 model.traverse(function (object) {
                     if (object.isMesh) {
                         object.castShadow = true;
@@ -298,12 +299,11 @@ export async function loadLevel2({
                     chestCollisionBox.position.copy(position);
                     chestCollisionBox.position.y = 1;
                     chestCollisionBox.name = `chest_collision_${index}`;
-                    // mark chest collision boxes as static collision geometry
-                    chestCollisionBox.userData.staticCollision = true;
-                    if (chestCollisionBox.geometry && chestCollisionBox.geometry.computeBoundsTree) deferComputeBoundsTree(chestCollisionBox.geometry);
+                    // Keep this as a chest trigger only. Do NOT mark it as staticCollision
+                    // or add it to `collidables` so it doesn't block player movement.
+                    chestCollisionBox.userData.isChestTrigger = true;
                     scene.add(chestCollisionBox);
-                    
-                    collidables.push(chestCollisionBox);
+                    // intentionally not added to `collidables`
                     
                     console.log(`Treasure chest ${index + 1} added at position:`, position);
                     updateLoader();
