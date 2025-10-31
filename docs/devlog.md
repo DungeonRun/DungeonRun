@@ -24,11 +24,12 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 
 ### 2. Niel Grobler
 - **Features Developed**: 
-  - added health, damage, and the player being able to attack with swords or spells
-  - implemented level loading (with additional shaders), game overs, and collision
-  - adjusted lighting
+  - added health, damage, and the player being able to attack with punching, swords or spells (with a custom shader for projectiles)
+  - implemented level loading functionality and loading screen, game overs, and collision(?)
+  - large codebase refactoring and fixing bugs in other's features
+  - bunch of commits i can't name, check commit logs
   
-- **Notes**: left off animations and iamges for other members, just know that 1 is sword (attacks in front) and 2 is spells
+- **Notes**: 
 - **Additional Info**: 
 
 ### 3. Ntokozo Skosana

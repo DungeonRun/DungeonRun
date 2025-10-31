@@ -23,11 +23,42 @@ let keyObject = null;
 let isKeyGrabbed = false;
 let debugMode = false;
 let debugHelpers = [];
+let occludedMeshes = new Set();
+const _occlusionRay = new THREE.Raycaster();
+let levelMusic = null;
 
 // Inventory
 let inventory;
 
-// Health bar
+// Inventory slot indexes
+const SLOT_PUNCH = 0;
+const SLOT_SWORD = 1;
+const SLOT_SPELL = 2;
+
+// cooldown durations (seconds)
+const PUNCH_COOLDOWN = 0.6;
+const SWORD_COOLDOWN = 1.5;
+const SPELL_COOLDOWN = 3.0;
+
+// Attack hitbox configuration (adjust to fit animations)
+const ATTACK_CONFIG = {
+    punch: {
+        delay: 0.12, // seconds after animation start when hit registers
+        duration: 0.4, // seconds the hitbox remains active/visible
+        distance: -1.0, // forward distance from player origin
+        size: new THREE.Vector3(1.0, 3.0, 1.2), // w,h,d
+        damage: 8
+    },
+    sword: {
+        delay: 0.4,
+        duration: 0.22,
+        distance: -0.8,
+        size: new THREE.Vector3(3.6, 3.6, 1.4),
+        damage: 25
+    }
+};
+
+// Health
 let playerHealthBar;
 
 // Pause menu and timer
@@ -50,6 +81,43 @@ renderer.setSize(window.innerWidth, window.innerHeight);
 renderer.setPixelRatio(window.devicePixelRatio);
 renderer.shadowMap.enabled = true;
 
+// Debug overlay for telemetry (position/state) shown when debugMode === true
+let debugOverlay = null;
+function initDebugOverlay() {
+    debugOverlay = document.createElement('div');
+    debugOverlay.id = 'debugOverlay';
+    debugOverlay.style.position = 'absolute';
+    debugOverlay.style.right = '10px';
+    debugOverlay.style.top = '10px';
+    debugOverlay.style.padding = '8px';
+    debugOverlay.style.background = 'rgba(0,0,0,0.6)';
+    debugOverlay.style.color = '#7CFC00';
+    debugOverlay.style.fontFamily = 'monospace';
+    debugOverlay.style.fontSize = '12px';
+    debugOverlay.style.zIndex = 10000;
+    debugOverlay.style.whiteSpace = 'pre';
+    debugOverlay.style.display = 'none';
+    document.body.appendChild(debugOverlay);
+}
+initDebugOverlay();
+
+function updateDebugOverlay() {
+    if (!debugOverlay) return;
+    if (!debugMode) {
+        debugOverlay.style.display = 'none';
+        return;
+    }
+    debugOverlay.style.display = 'block';
+    const pos = (characterControls && characterControls.model) ? characterControls.model.position : new THREE.Vector3();
+    const action = characterControls ? characterControls.currentAction : 'N/A';
+    const health = characterControls ? (typeof characterControls.health === 'number' ? characterControls.health : 'N/A') : (playerHealthBar ? 'N/A' : 'N/A');
+    const selected = inventory ? inventory.getSelected() : 'N/A';
+    const projCount = projectileManager ? (projectileManager.projectiles ? projectileManager.projectiles.length : 0) : (projectiles ? projectiles.length : 0);
+    const enemyCount = enemies ? enemies.length : 0;
+    const collision = (characterControls && characterControls.lastCollision) ? characterControls.lastCollision : 'none';
+    debugOverlay.textContent = `pos: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}\naction: ${action}\nhealth: ${health}\nselected: ${selected}\nkeyGrabbed: ${isKeyGrabbed}\nprojectiles: ${projCount}\nenemies: ${enemyCount}\ncollision: ${collision}`;
+}
+
 // Level state
 let characterControls;
 let thirdPersonCamera;
@@ -61,8 +129,9 @@ let loader;
 let keyDisplay;
 
 // Projectiles
-const projectileManager = new ProjectileManager(scene, camera, enemies);
+const projectileManager = new ProjectileManager(scene, enemies);
 let projectiles = [];
+let removalQueue = [];
 
 // Chest interaction state
 let isHoldingChestKey = false;
@@ -90,6 +159,8 @@ function clearScene() {
 
     if (gameOverUI) gameOverUI.remove();
     if (gameTimer) gameTimer.remove();
+    if (inventory) inventory.remove();
+    if (keyDisplay) keyDisplay.remove();
 }
 
 // === Load Level ===
@@ -120,6 +191,13 @@ async function loadLevel(levelLoader, levelName = '') {
 
     loader.hide();
 
+    // play level-specific music (level1.mp3, level2.mp3, ... in src/sounds)
+    try {
+        playMusicForLevel(currentLevel);
+    } catch (e) {
+        console.warn('Could not play level music:', e);
+    }
+
     // === Initialize Timer ===
     gameTimer = new GameTimerUI();
     gameTimer.reset();
@@ -131,6 +209,24 @@ async function loadLevel(levelLoader, levelName = '') {
     pauseMenuUI = new PauseMenuUI();
     inventory = new Inventory();
     keyDisplay = new KeyDisplay();
+}
+
+function playMusicForLevel(level) {
+    // stop previous
+    try {
+        if (levelMusic) {
+            levelMusic.pause();
+            levelMusic = null;
+        }
+        const path = `./src/sounds/level${level}.mp3`;
+        levelMusic = new Audio(path);
+        levelMusic.loop = true;
+        levelMusic.volume = 0.45;
+        // ignore play promise rejection (autoplay policy) — will play after user gesture
+        levelMusic.play().catch(() => {});
+    } catch (e) {
+        console.warn('playMusicForLevel error', e);
+    }
 }
 
 // === Keyboard Controls ===
@@ -146,31 +242,28 @@ document.addEventListener('keydown', (event) => {
     }
 
     if (isPaused) return;
+
+    // Always mark the key as pressed for continuous controls
     keysPressed[event.code] = true;
     if (keyDisplay) keyDisplay.down(event.code);
 
+    // One-shot actions should only run on initial keydown (avoid heavy repeated work during auto-repeat)
+    const firstPress = !event.repeat;
+
     // Try pickup from open chest first (artifact/potion)
-    if (event.code === 'KeyR') {
+    if (firstPress && event.code === 'KeyR') {
         if (tryPickupChestArtifact()) return;
     }
 
-    // Key pickup - R key
-    if (event.code === 'KeyR' && keyObject && !isKeyGrabbed && characterControls) {
+    // Key pickup - R key (explicit grab when near)
+    if (firstPress && event.code === 'KeyR' && keyObject && !isKeyGrabbed && characterControls) {
         const playerPos = characterControls.model.position;
         const keyPos = keyObject.position;
         if (playerPos.distanceTo(keyPos) < 1.0) grabKey();
     }
 
-    // Inventory controls
-    if (event.code === 'Digit1') inventory.selected = 0;
-    if (event.code === 'Digit2') inventory.selected = 1;
-    if (event.code === 'KeyQ') inventory.switchItem();
-
-    // Player attack
-    if (event.code === 'KeyE' && characterControls) playerAttack();
-
     // Chest interaction - T key (hold to open)
-    if (event.code === 'KeyT' && characterControls) {
+    if (firstPress && event.code === 'KeyT' && characterControls) {
         const nearestDist = ChestController.getNearestChestDistance();
         if (nearestDist < 3) {
             isHoldingChestKey = true;
@@ -180,7 +273,7 @@ document.addEventListener('keydown', (event) => {
     }
 
     // Quick chest toggle - C key (instant toggle)
-    if (event.code === 'KeyC' && characterControls) {
+    if (firstPress && event.code === 'KeyC' && characterControls) {
         const interacted = ChestController.tryInteract();
         if (interacted) {
             console.log('✓ Chest toggled');
@@ -188,15 +281,37 @@ document.addEventListener('keydown', (event) => {
             console.log('No chest nearby to interact with');
         }
     }
+    // Inventory controls (1=punch, 2=sword, 3=spell) - only on initial press
+    if (firstPress) {
+        if (event.code === 'Digit1') inventory && inventory.select && inventory.select(0);
+        if (event.code === 'Digit2') inventory && inventory.select && inventory.select(1);
+        if (event.code === 'Digit3') inventory && inventory.select && inventory.select(2);
+        if (event.code === 'KeyQ') inventory && inventory.switchItem && inventory.switchItem();
+    }
 
-    // Damage player
-    if (event.code === 'KeyH' && playerHealthBar) {
+    // Player attack / Key pickup (KeyE)
+    if (event.code === 'KeyE' && characterControls && firstPress) {
+        /*// If there's a visible key nearby, prioritize pickup and don't attack || swallowing my pride and keeping picking up key at r
+        if (keyObject && !isKeyGrabbed && keyObject.visible) {
+            const playerPos = characterControls.model.position;
+            const keyPos = keyObject.position;
+            const distance = playerPos.distanceTo(keyPos);
+            if (distance < 1.0) {
+                grabKey();
+                return; // don't proceed to attack
+            }
+        }*/
+        playerAttack();
+    }
+
+    // Damage player (single press)
+    if (firstPress && event.code === 'KeyH' && playerHealthBar) {
         playerHealthBar.setHealth(playerHealthBar.health - 10);
         if (characterControls) characterControls.health = playerHealthBar.health;
     }
 
-    // Debug mode
-    if (event.code === 'KeyP') {
+    // Debug mode (toggle only on initial press)
+    if (firstPress && event.code === 'KeyP') {
         debugMode = !debugMode;
         updateDebugHelpers();
     }
@@ -217,46 +332,149 @@ document.addEventListener('keyup', (event) => {
 // === Key Grab Logic ===
 function grabKey() {
     if (!keyObject || isKeyGrabbed || !characterControls || !keyObject.visible) return;
+
     isKeyGrabbed = true;
     keyObject.userData.isGrabbed = true;
-    keyObject.visible = false;
+    gameTimer.stop();
+    characterControls.playPickup();
 
     if (keyDisplay) {
         keyDisplay.updateKeyStatus('yes');
-        keyDisplay.up('KeyR');
+        keyDisplay.up('KeyE');
     }
 
-    characterControls.playPickup();
-    keysPressed['KeyR'] = false;
+    keysPressed['KeyE'] = false;
+
+    const PICKUP_ANIM_MS = 2700;
+    setTimeout(() => {
+        if (keyObject) { keyObject.visible = false; }
+    }, PICKUP_ANIM_MS);
 
     setTimeout(() => {
         if (isKeyGrabbed && !window._levelSwitched) {
             window._levelSwitched = true;
             switchLevel();
         }
-    }, 1500);
+    }, PICKUP_ANIM_MS + 2300);
 }
 
-// === Player Attack Logic ===
-let spellCooldownEnd = 5000;
 function playerAttack() {
-    if (!characterControls || !characterControls.model) return;
-    if (inventory.getSelected() === 'sword') {
-        swordAttack();
-        characterControls.playSword();
-    } else if (inventory.getSelected() === 'spell') {
-        if (performance.now() > spellCooldownEnd) {
+    if (!characterControls || !characterControls.model || !inventory) return;
+    const selected = inventory.getSelected();
+
+    if (selected === 'punch') {
+        if (!inventory.isOnCooldown(SLOT_PUNCH)) {
+            // play punch animation and schedule hitbox
+            characterControls.playPunch();
+            spawnAttackHitbox('punch');
+            inventory.startCooldown(SLOT_PUNCH, PUNCH_COOLDOWN);
+        }
+    } else if (selected === 'sword') {
+        if (!inventory.isOnCooldown(SLOT_SWORD)) {
+            characterControls.playSword();
+            spawnAttackHitbox('sword');
+            inventory.startCooldown(SLOT_SWORD, SWORD_COOLDOWN);
+        }
+    } else if (selected === 'spell') {
+        if (!inventory.isOnCooldown(SLOT_SPELL)) {
             const origin = characterControls.model.position.clone();
             origin.y += 1.2;
             const direction = new THREE.Vector3(0, 0, 1).applyQuaternion(characterControls.model.quaternion);
             projectileManager.fireSpell(origin, direction);
-            spellCooldownEnd = performance.now() + 5000;
+            inventory.startCooldown(SLOT_SPELL, SPELL_COOLDOWN);
         }
     }
 }
 
 function swordAttack() {
+    // kept for backward compatibility but not used by new timed hitbox system
+    return;
+}
+
+/**
+ * Spawn a timed hitbox for an attack type (punch/sword).
+ * The actual hit check runs after the configured delay so it lines up with the animation.
+ */
+function spawnAttackHitbox(type) {
     if (!characterControls || !characterControls.model) return;
+    const cfg = ATTACK_CONFIG[type];
+    if (!cfg) return;
+
+    // lightweight hitbox object using distance checks to avoid Box3 allocations
+    const hitbox = {
+        type,
+        cfg,
+        active: false,
+        hits: new Set(),
+        debugMesh: null
+    };
+
+    // create debug mesh but only add to scene if debugMode is on
+    try {
+        const boxGeo = new THREE.BoxGeometry(cfg.size.x, cfg.size.y, cfg.size.z);
+        const mat = new THREE.MeshBasicMaterial({ color: 0xff8800, wireframe: true, transparent: true, opacity: 0.9 });
+        const mesh = new THREE.Mesh(boxGeo, mat);
+        mesh.visible = !!debugMode;
+        hitbox.debugMesh = mesh;
+        if (mesh.visible) scene.add(mesh);
+        debugHelpers.push(mesh);
+    } catch (e) {
+        // ignore
+    }
+
+    const delayMs = Math.max(0, Math.floor(cfg.delay * 1000));
+    const removeMs = Math.max(50, Math.floor((cfg.delay + cfg.duration) * 1000));
+
+    // Activate hit after delay
+    setTimeout(() => {
+        hitbox.active = true;
+
+        // compute center in front of player
+        const playerPos = characterControls.model.position.clone();
+        const forward = new THREE.Vector3(0, 0, -1).applyQuaternion(characterControls.model.quaternion).normalize();
+        const center = playerPos.clone().add(forward.multiplyScalar(cfg.distance));
+        center.y += cfg.size.y * 0.25;
+
+        if (hitbox.debugMesh) {
+            hitbox.debugMesh.position.copy(center);
+            hitbox.debugMesh.rotation.copy(characterControls.model.rotation);
+            if (!scene.children.includes(hitbox.debugMesh)) scene.add(hitbox.debugMesh);
+            hitbox.debugMesh.visible = !!debugMode;
+        }
+
+        // check enemies using cached radii
+        for (let i = 0; i < enemies.length; ++i) {
+            const enemy = enemies[i];
+            if (!enemy || !enemy.enemyModel) continue;
+            const enemyPos = enemy.enemyModel.position;
+            const enemyRadius = (enemy.enemyModel.userData && enemy.enemyModel.userData.radius) ? enemy.enemyModel.userData.radius : 1.0;
+            const hitExtent = Math.max(cfg.size.x, cfg.size.z) * 0.5;
+            const r = enemyRadius + hitExtent;
+            if (center.distanceToSquared(enemyPos) <= r * r) {
+                if (!hitbox.hits.has(enemy)) {
+                    enemy.health = Math.max(0, enemy.health - cfg.damage);
+                    if (enemy.healthBar) enemy.healthBar.setHealth(enemy.health);
+                    hitbox.hits.add(enemy);
+                    if (type === 'punch') break; // punch only hits one enemy
+                }
+            }
+        }
+    }, delayMs);
+
+    // cleanup debug mesh after its duration
+    setTimeout(() => {
+        if (hitbox.debugMesh) {
+            const idx = debugHelpers.indexOf(hitbox.debugMesh);
+            if (idx !== -1) debugHelpers.splice(idx, 1);
+            try { if (hitbox.debugMesh.parent) hitbox.debugMesh.parent.remove(hitbox.debugMesh); } catch (e) {}
+            hitbox.debugMesh = null;
+        }
+        hitbox.active = false;
+    }, removeMs);
+}
+
+// Animation loop
+/* old code for animation/attack
     const playerPos = characterControls.model.position.clone();
     const forward = new THREE.Vector3(0, 0.5, -0.33).applyQuaternion(characterControls.model.quaternion);
     const hitboxCenter = playerPos.clone().add(forward.multiplyScalar(2));
@@ -268,6 +486,7 @@ function swordAttack() {
         if (hitbox.intersectsBox(enemyBox)) enemy.health = Math.max(0, enemy.health - 25);
     });
 }
+*/
 
 // === Pause Menu Handling ===
 function togglePause() {
@@ -303,7 +522,7 @@ const clock = new THREE.Clock();
 function animate() {
     const delta = clock.getDelta();
 
-    if (loader && loader.isLoading) {
+    if (loader && loader.isLoading || isGameOver) {
         loader.render();
         requestAnimationFrame(animate);
         return;
@@ -323,17 +542,30 @@ function animate() {
                     chestKeyHoldTime = 0;
                 }
             }
-
-            // Death handling
-            if (characterControls.health <= 0 && !isGameOver) {
-                characterControls.playDeath();
-                isGameOver = true;
-                if (gameTimer) gameTimer.stop();
-            }
         }
 
-        // Update chest animations
-        ChestController.update(delta);
+        // Death animation on health <= 0
+        if (characterControls.health <= 0 && !isGameOver) {
+            characterControls.playDeath();
+            isGameOver = true; // Prevent repeated triggers
+            if (gameTimer) gameTimer.stop();
+
+            if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
+                document.exitPointerLock();
+            }
+            const cameraPosition = camera.position.clone();
+            const cameraRotation = camera.rotation.clone();
+            setTimeout(() => {
+                //if (characterControls.model) { scene.remove(characterControls.model); }
+            },1000)
+            
+            gameOverUI.show(() => {
+                loadLevel(loadDemoLevel);
+            });
+            characterControls = null;
+        }
+    }
+
 
         enemies.forEach(enemy => {
             enemy.update(delta, characterControls);
@@ -343,33 +575,64 @@ function animate() {
             }
         });
 
+        // batch enemy removals to avoid single-frame spikes
         for (let i = enemies.length - 1; i >= 0; i--) {
             const enemy = enemies[i];
             if (enemy.health <= 0) {
-                scene.remove(enemy.enemyModel);
+                removalQueue.push(enemy);
+                enemies.splice(i, 1);
+            }
+        }
+        // process up to 2 removals per frame
+        let removalsThisFrame = 0;
+        while (removalQueue.length > 0 && removalsThisFrame < 2) {
+            const enemy = removalQueue.shift();
+            try {
+                if (enemy.enemyModel) scene.remove(enemy.enemyModel);
                 if (enemy.healthBar) enemy.healthBar.remove();
                 if (enemy.debugHelper) {
                     scene.remove(enemy.debugHelper);
                     enemy.debugHelper = null;
                 }
-                enemies.splice(i, 1);
-            }
+            } catch (e) { console.warn('Error removing enemy:', e); }
+            removalsThisFrame++;
         }
 
         if (keyAnimator) keyAnimator();
 
+
+
         // Key pickup prompt (R)
-        if (keyObject && !isKeyGrabbed && characterControls) {
+        if (keyObject && !isKeyGrabbed) {
+        const allEnemiesDefeated = (enemies.length === 0);
+        keyObject.visible = allEnemiesDefeated;
+        
+        // Only show key interaction prompt when enemies are defeated
+        if (allEnemiesDefeated && characterControls) {
             const playerPos = characterControls.model.position;
             const distance = playerPos.distanceTo(keyObject.position);
             if (distance < 3) {
-                if (keyDisplay) keyDisplay.down('KeyR');
+                if (keyDisplay) {
+                    keyDisplay.down('KeyR');
+                }
+                if (distance < 3 && distance > 2) {
+                    console.log('Press R to grab the key!');
+                }
             } else {
-                if (keyDisplay) keyDisplay.up('KeyR');
+                if (keyDisplay) {
+                    keyDisplay.up('KeyR');
+                }
             }
-        } else if (keyDisplay) {
+        } else {
+            if (keyDisplay) {
+                keyDisplay.up('KeyR');
+            }
+        }
+    } else {
+        if (keyDisplay) {
             keyDisplay.up('KeyR');
         }
+    }
 
         // Chest prompts (T hold, C toggle)
         if (characterControls && keyDisplay) {
@@ -394,16 +657,14 @@ function animate() {
             playerHealthBar.setHealth(characterControls.health);
         }
 
-        if (characterControls && characterControls.health <= 0 && !gameOverUI.isGameOver) {
-            if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) document.exitPointerLock();
-            if (characterControls.model) scene.remove(characterControls.model);
-            gameOverUI.show(() => {
-                loadLevel(loadDemoLevel);
-            });
-            if (gameTimer) gameTimer.stop();
-            characterControls = null;
-        }
-    }
+    
+
+    if (debugMode) updateDebugHelpers();
+    // update camera->player occlusion each frame
+    updateOcclusion();
+
+    // update textual debug overlay
+    updateDebugOverlay();
 
     renderer.render(scene, camera);
     requestAnimationFrame(animate);
@@ -440,6 +701,73 @@ function updateDebugHelpers() {
         scene.add(helper);
         debugHelpers.push(helper);
     });
+}
+
+// Occlusion: make meshes between camera and player semi-transparent
+function restoreOcclusion(exceptSet = new Set()) {
+    for (const mesh of Array.from(occludedMeshes)) {
+        if (exceptSet.has(mesh)) continue;
+        if (mesh.userData && mesh.userData._origMaterial) {
+            try {
+                // dispose the temporary material
+                if (mesh.material && mesh.material.dispose) mesh.material.dispose();
+            } catch (e) {}
+            mesh.material = mesh.userData._origMaterial;
+            delete mesh.userData._origMaterial;
+        }
+        occludedMeshes.delete(mesh);
+    }
+}
+
+function updateOcclusion() {
+    if (!characterControls || !characterControls.model) {
+        restoreOcclusion();
+        return;
+    }
+
+    const camPos = camera.position.clone();
+    const playerPos = characterControls.model.position.clone().add(new THREE.Vector3(0, 1.0, 0));
+    const dir = playerPos.clone().sub(camPos);
+    const dist = dir.length();
+    if (dist <= 0.01) {
+        restoreOcclusion();
+        return;
+    }
+    dir.normalize();
+
+    _occlusionRay.set(camPos, dir);
+    _occlusionRay.far = dist;
+    const intersects = _occlusionRay.intersectObjects(scene.children, true);
+
+    const keepSet = new Set();
+    for (const it of intersects) {
+        const obj = it.object;
+        // skip player or enemy models
+        if (!obj.isMesh) continue;
+        const root = obj; // use the hit mesh directly
+        if (root.name && (root.name.toLowerCase().includes('player') || root.name.toLowerCase().includes('enemy') || root.name.toLowerCase().includes('key') || root.name.toLowerCase().includes('hitbox'))) {
+            // stop at player or other important object
+            break;
+        }
+
+        // mark and make transparent
+        if (!root.userData._origMaterial) {
+            root.userData._origMaterial = root.material;
+            const mat = Array.isArray(root.userData._origMaterial) ? root.userData._origMaterial.map(m => m.clone()) : root.userData._origMaterial.clone();
+            if (Array.isArray(mat)) mat.forEach(m => { m.transparent = true; m.opacity = 0.28; m.dithering = true; });
+            else { mat.transparent = true; mat.opacity = 0.28; mat.dithering = true; }
+            root.material = mat;
+        } else {
+            // update opacity if already cloned
+            if (Array.isArray(root.material)) root.material.forEach(m => m.opacity = 0.28);
+            else root.material.opacity = 0.28;
+        }
+        occludedMeshes.add(root);
+        keepSet.add(root);
+    }
+
+    // restore any previously occluded meshes that are no longer blocking
+    restoreOcclusion(keepSet);
 }
 
 function tryPickupChestArtifact() {

@@ -20,6 +20,13 @@ export async function loadLevel2({
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
+    function deferComputeBoundsTree(geometry) {
+        if (!geometry || !geometry.computeBoundsTree) return;
+        const fn = () => { try { geometry.computeBoundsTree(); } catch (e) { console.warn('computeBoundsTree failed', e); } };
+        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(fn);
+        else setTimeout(fn, 0);
+    }
+
     //  Ambient and Directional Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.3));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
@@ -70,6 +77,12 @@ export async function loadLevel2({
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
 
+    // ensure floor participates in collisions
+    floor.name = 'ground';
+    // prefer BVH per-surface collision for the floor
+    floor.userData.staticCollision = true;
+    if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
+
     //  Room Cube
     /*
     const size = 30;
@@ -97,13 +110,16 @@ export async function loadLevel2({
     wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half);
     wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);*/
 
+
     /*wallPlanes.forEach(wall => {
         wall.geometry.computeBoundsTree();
         scene.add(wall);
     });
     const collidables = [...wallPlanes];*/
 
+    // ensure ground is included for collision checks
     const collidables = [];
+    collidables.push(floor);
 
     const playerSpawn = new THREE.Vector3(3, 3, 0);
 
@@ -213,14 +229,22 @@ export async function loadLevel2({
                 levelModel.position.copy(roomPosition);
                 levelModel.traverse(obj => {
                     if (obj.isMesh) {
-                        obj.castShadow = true;
-                        obj.receiveShadow = true;
-                        if (obj.geometry && obj.geometry.computeBoundsTree) {
-                            obj.geometry.computeBoundsTree();
+                            obj.castShadow = true;
+                            obj.receiveShadow = true;
+                            // mark level geometry as static collision geometry so we prefer BVH triangle tests
+                            obj.userData.staticCollision = true;
+                            if (obj.geometry && obj.geometry.computeBoundsTree) {
+                                deferComputeBoundsTree(obj.geometry);
+                            }
                         }
-                    }
                 });
                 scene.add(levelModel);
+                // make level geometry participate in collisions
+                levelModel.traverse(obj => {
+                    if (obj.isMesh) {
+                        collidables.push(obj);
+                    }
+                });
                 updateLoader();
                 resolve(levelModel);
             },
@@ -274,7 +298,9 @@ export async function loadLevel2({
                     chestCollisionBox.position.copy(position);
                     chestCollisionBox.position.y = 1;
                     chestCollisionBox.name = `chest_collision_${index}`;
-                    chestCollisionBox.geometry.computeBoundsTree();
+                    // mark chest collision boxes as static collision geometry
+                    chestCollisionBox.userData.staticCollision = true;
+                    if (chestCollisionBox.geometry && chestCollisionBox.geometry.computeBoundsTree) deferComputeBoundsTree(chestCollisionBox.geometry);
                     scene.add(chestCollisionBox);
                     
                     collidables.push(chestCollisionBox);
