@@ -80,17 +80,17 @@ export async function loadLevel2({
     });
 
     // UNCOMMENT THE FLOOR CREATION OR REMOVE THE FLOOR REFERENCES
-    const floor = new THREE.Mesh(geometry, material);
-    floor.receiveShadow = true;
-    floor.rotation.x = -Math.PI / 2;
-    scene.add(floor);
+    //const floor = new THREE.Mesh(geometry, material);
+    //floor.receiveShadow = true;
+    //floor.rotation.x = -Math.PI / 2;
+    //scene.add(floor);
 
-    floor.name = 'ground';
-    floor.userData.staticCollision = true;
-    if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
+    //floor.name = 'ground';
+    //floor.userData.staticCollision = true;
+    //if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
 
     const collidables = [];
-    collidables.push(floor); // UNCOMMENT THIS TOO
+    //collidables.push(floor); // UNCOMMENT THIS TOO
 
     const playerSpawn = new THREE.Vector3(3, 3, 0); // FIXED: Changed from (0, 1, 0) to (3, 3, 0)
 
