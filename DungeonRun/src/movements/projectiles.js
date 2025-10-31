@@ -6,12 +6,11 @@ export class ProjectileManager {
         this.enemies = enemies;
         this.projectiles = [];
         this.debugHelpers = [];
-        //this.debugModeRef = debugModeRef; 
-    }
-
-    fireSpell(origin, direction) {
-        const geometry = new THREE.SphereGeometry(0.5, 20, 20);
-        const material = new THREE.ShaderMaterial({
+        //this.debugModeRef = debugModeRef;
+        // pooling to avoid repeated geometry/material allocation
+        this._pool = [];
+        this._sharedGeometry = new THREE.SphereGeometry(0.5, 20, 20);
+        this._sharedMaterial = new THREE.ShaderMaterial({
             uniforms: { time: { value: 0.0 } },
             vertexShader: `
                 uniform float time;
@@ -54,15 +53,24 @@ export class ProjectileManager {
             `,
             transparent: true
         });
-        const spell = new THREE.Mesh(geometry, material);
+    }
+
+    fireSpell(origin, direction) {
+        let spell = null;
+        if (this._pool.length > 0) {
+            spell = this._pool.pop();
+        } else {
+            spell = new THREE.Mesh(this._sharedGeometry, this._sharedMaterial);
+        }
         spell.position.copy(origin);
         spell.userData = {
             direction: direction.clone(),
             speed: 8,
-            created: performance.now()
+            created: performance.now(),
+            // track which enemies this spell has already hit to allow multi-hit behavior
+            hitSet: new Set()
         };
-        const light = new THREE.PointLight(0xaa00ff, 1, 5);
-        spell.add(light);
+        // avoid per-spell dynamic lights (expensive); if needed add cheap emissive material
         this.scene.add(spell);
         this.projectiles.push(spell);
 
@@ -82,36 +90,49 @@ export class ProjectileManager {
         this.debugHelpers.forEach(({ helper }) => this.scene.remove(helper));
         this.debugHelpers = [];
 
-        this.projectiles = this.projectiles.filter(spell => {
-            spell.material.uniforms.time.value = performance.now() / 1000;
-            spell.position.add(spell.userData.direction.clone().multiplyScalar(spell.userData.speed * delta));
-            if (performance.now() - spell.userData.created > 5000) {
+        // temp vector reused to avoid allocation in loop
+        const tmp = ProjectileManager._tmpVec || (ProjectileManager._tmpVec = new THREE.Vector3());
+
+        const now = performance.now();
+        const keep = [];
+        for (let i = 0; i < this.projectiles.length; ++i) {
+            const spell = this.projectiles[i];
+            // update shader time uniform
+            if (spell.material && spell.material.uniforms && spell.material.uniforms.time) spell.material.uniforms.time.value = now / 1000;
+
+            tmp.copy(spell.userData.direction).multiplyScalar(spell.userData.speed * delta);
+            spell.position.add(tmp);
+
+            if (now - spell.userData.created > 5000) {
                 this.scene.remove(spell);
-                return false;
+                this._pool.push(spell);
+                continue;
             }
 
-            for (const enemy of this.enemies) {
-                if (!enemy.enemyModel) continue;
-                const spellBox = new THREE.Box3().setFromObject(spell);
-                const enemyBox = new THREE.Box3().setFromObject(enemy.enemyModel);
-                if (spellBox.intersectsBox(enemyBox)) {
-                    enemy.health = Math.max(0, enemy.health - 40);
-                    if (enemy.healthBar) enemy.healthBar.setHealth(enemy.health);
-                    this.scene.remove(spell);
-                    return false;
+            // fast distance-based collision using cached enemy radius (avoid expensive setFromObject)
+            const spellPos = spell.position;
+            const spellRadius = 0.5; // matches geometry
+            let collided = false;
+            for (let j = 0; j < this.enemies.length; ++j) {
+                const enemy = this.enemies[j];
+                if (!enemy || !enemy.enemyModel) continue;
+                const enemyPos = enemy.enemyModel.position;
+                const enemyRadius = (enemy.enemyModel.userData && enemy.enemyModel.userData.radius) ? enemy.enemyModel.userData.radius : 1.0;
+                const r = spellRadius + enemyRadius;
+                const d2 = spellPos.distanceToSquared(enemyPos);
+                if (d2 <= r * r) {
+                    // allow a spell to hit multiple enemies but only once per enemy
+                    if (!spell.userData.hitSet.has(enemy)) {
+                        spell.userData.hitSet.add(enemy);
+                        enemy.health = Math.max(0, enemy.health - 40);
+                        if (enemy.healthBar) enemy.healthBar.setHealth(enemy.health);
+                    }
+                    // do not consume the spell; let it continue until lifetime expires (multi-hit)
+                    collided = false; // do not remove the spell
                 }
             }
-            //debug mode only
-            /*
-            if (this.debugModeRef && this.debugModeRef.value) {
-                const box = new THREE.Box3().setFromObject(spell);
-                const helper = new THREE.Box3Helper(box, 0xaa00ff);
-                this.scene.add(helper);
-                this.debugHelpers.push({ mesh: spell, helper });
-            }
-            */
-            return true;
-            
-        });
+            if (!collided) keep.push(spell);
+        }
+        this.projectiles = keep;
     }
 }

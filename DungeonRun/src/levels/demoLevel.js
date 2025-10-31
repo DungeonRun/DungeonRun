@@ -25,6 +25,16 @@ export async function loadDemoLevel({
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
 
+    // helper: defer heavy BVH build to avoid blocking the main loader frame
+    function deferComputeBoundsTree(geometry) {
+        if (!geometry || !geometry.computeBoundsTree) return;
+        const fn = () => {
+            try { geometry.computeBoundsTree(); } catch (e) { console.warn('computeBoundsTree failed', e); }
+        };
+        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(fn);
+        else setTimeout(fn, 0);
+    }
+
     //  Ambient and Directional Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.3));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
@@ -74,6 +84,11 @@ export async function loadDemoLevel({
     floor.receiveShadow = true;
     floor.rotation.x = -Math.PI / 2;
     scene.add(floor);
+    // include floor in collidables so player/enemies raycasts and collisions consider it
+    floor.name = 'ground';
+    if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
+    // mark floor as static collision geometry so BVH-based triangle checks are used
+    floor.userData.staticCollision = true;
 
     //  Room Cube
     const size = 30;
@@ -102,12 +117,15 @@ export async function loadDemoLevel({
     wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);
 
     wallPlanes.forEach(wall => {
-        wall.geometry.computeBoundsTree();
+        if (wall.geometry && wall.geometry.computeBoundsTree) deferComputeBoundsTree(wall.geometry);
+        // mark walls as static collision geometry
+        wall.userData.staticCollision = true;
         scene.add(wall);
     });
     const collidables = [...wallPlanes];
+    collidables.push(floor);
 
-    const playerSpawn = new THREE.Vector3(0, 3, 0);
+    const playerSpawn = new THREE.Vector3(0, 1, 0);
 
     const enemyConfigs = [
         { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
@@ -136,6 +154,7 @@ export async function loadDemoLevel({
             '/src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
+                model.position.copy(playerSpawn);
                 model.traverse(function (object) {
                     if (object.isMesh) {
                         object.castShadow = true;
@@ -294,7 +313,9 @@ export async function loadDemoLevel({
                     chestCollisionBox.position.copy(position);
                     chestCollisionBox.position.y = 1;
                     chestCollisionBox.name = `chest_collision_${index}`;
-                    chestCollisionBox.geometry.computeBoundsTree();
+                    // defer BVH build for collision box and mark it static for triangle-level tests
+                    if (chestCollisionBox.geometry && chestCollisionBox.geometry.computeBoundsTree) deferComputeBoundsTree(chestCollisionBox.geometry);
+                    chestCollisionBox.userData.staticCollision = true;
                     scene.add(chestCollisionBox);
                     
                     collidables.push(chestCollisionBox);
