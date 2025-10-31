@@ -1,7 +1,6 @@
 import { computeBoundsTree, disposeBoundsTree, acceleratedRaycast } from 'three-mesh-bvh';
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { ChestController } from '../ChestController.js';
 import { EnemyMovement } from '../movements/enemyMovement.js';
 import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { CharacterControls } from '../movements/characterControls.js';
@@ -17,23 +16,9 @@ export async function loadDemoLevel({
     onEnemiesLoaded,
     onKeyLoaded
 }) {
-    // Initialize ChestController first
-    ChestController.init(scene, null);
-    console.log('ChestController initialized');
-
     THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
-
-    // helper: defer heavy BVH build to avoid blocking the main loader frame
-    function deferComputeBoundsTree(geometry) {
-        if (!geometry || !geometry.computeBoundsTree) return;
-        const fn = () => {
-            try { geometry.computeBoundsTree(); } catch (e) { console.warn('computeBoundsTree failed', e); }
-        };
-        if (typeof requestIdleCallback !== 'undefined') requestIdleCallback(fn);
-        else setTimeout(fn, 0);
-    }
 
     //  Ambient and Directional Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.3));
@@ -83,49 +68,87 @@ export async function loadDemoLevel({
     const floor = new THREE.Mesh(geometry, material);
     floor.receiveShadow = true;
     floor.rotation.x = -Math.PI / 2;
-    scene.add(floor);
-    // include floor in collidables so player/enemies raycasts and collisions consider it
-    floor.name = 'ground';
-    if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
-    // mark floor as static collision geometry so BVH-based triangle checks are used
-    floor.userData.staticCollision = true;
+    // REMOVED: Floor is now part of the room model from Blender
+    // scene.add(floor);
 
-    //  Room Cube
-    const size = 30;
-    const roomGeometry = new THREE.BoxGeometry(size, size, size);
-    const roomMaterial = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        side: THREE.BackSide
+    const collidables = [];
+
+    // FIXED: Define roomPosition - adjust Y position if room is above ground in Blender
+    // If your room model's floor is at Y=0 in Blender, set roomPosition.y to 0
+    // If you need to lower the room, use negative Y value (e.g., -15)
+    const roomPosition = new THREE.Vector3(0, 0, 0);
+
+    //  Room Cube - Load level model
+    const levelModelPromise = new Promise(resolve => {
+        const levelLoader = new GLTFLoader();
+        levelLoader.load(
+            '/src/levels/level1/Level1.glb',
+            (gltf) => {
+                const levelModel = gltf.scene;
+                levelModel.position.copy(roomPosition);
+                
+                levelModel.traverse(obj => {
+                    if (obj.isMesh) {
+                        obj.castShadow = true;
+                        obj.receiveShadow = true;
+                        
+                        // FIXED: Better texture handling for Blender shader editor materials
+                        if (obj.material) {
+                            const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+                            
+                            materials.forEach(mat => {
+                                // Check if material has textures before processing
+                                if (mat.map) {
+                                    mat.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                                    // CRITICAL: Ensure correct texture encoding
+                                    mat.map.encoding = THREE.sRGBEncoding;
+                                    mat.map.needsUpdate = true;
+                                }
+                                if (mat.normalMap) {
+                                    mat.normalMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                                    mat.normalMap.needsUpdate = true;
+                                }
+                                if (mat.roughnessMap) {
+                                    mat.roughnessMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                                    mat.roughnessMap.needsUpdate = true;
+                                }
+                                if (mat.metalnessMap) {
+                                    mat.metalnessMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                                    mat.metalnessMap.needsUpdate = true;
+                                }
+                                if (mat.aoMap) {
+                                    mat.aoMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                                    mat.aoMap.needsUpdate = true;
+                                }
+                                
+                                // Ensure material renders properly
+                                mat.side = THREE.FrontSide; // Use FrontSide for proper rendering
+                                mat.needsUpdate = true;
+                            });
+                        }
+                        
+                        // Add BVH for collision detection and add to collidables
+                        if (obj.geometry && obj.geometry.computeBoundsTree) {
+                            obj.geometry.computeBoundsTree();
+                            collidables.push(obj);
+                        }
+                    }
+                });
+                
+                scene.add(levelModel);
+                updateLoader();
+                resolve(levelModel);
+            },
+            undefined,
+            (err) => {
+                console.warn('Could not load level model:', err);
+                updateLoader();
+                resolve();
+            }
+        );
     });
-    const room = new THREE.Mesh(roomGeometry, roomMaterial);
-    room.position.y = size / 2 - 0.05;
-    room.receiveShadow = true;
-    scene.add(room);
 
-    const half = size / 2;
-    const wallThickness = 0.2;
-    const wallPlanes = [
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false }))
-    ];
-
-    wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z);
-    wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z);
-    wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half);
-    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);
-
-    wallPlanes.forEach(wall => {
-        if (wall.geometry && wall.geometry.computeBoundsTree) deferComputeBoundsTree(wall.geometry);
-        // mark walls as static collision geometry
-        wall.userData.staticCollision = true;
-        scene.add(wall);
-    });
-    const collidables = [...wallPlanes];
-    collidables.push(floor);
-
-    const playerSpawn = new THREE.Vector3(0, 1, 0);
+    const playerSpawn = new THREE.Vector3(0, 3, 0);
 
     const enemyConfigs = [
         { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
@@ -135,17 +158,20 @@ export async function loadDemoLevel({
     ];
 
     const chestPositions = [
-        new THREE.Vector3(-12, 0, -12),
-        new THREE.Vector3(12, 0, -12),
-        new THREE.Vector3(-12, 0, 12),
-        new THREE.Vector3(12, 0, 12)
+        new THREE.Vector3(-12, 0, -12),  // Bottom-left corner
+        new THREE.Vector3(12, 0, -12),   // Bottom-right corner
+        new THREE.Vector3(-12, 0, 12),   // Top-left corner
+        new THREE.Vector3(12, 0, 12)     // Top-right corner
     ];
 
-    const totalSteps = 1 + enemyConfigs.length + 1 + chestPositions.length;
+    const totalSteps = 1 + 1 + enemyConfigs.length + 1 + chestPositions.length;
     let completedSteps = 0;
     function updateLoader() {
         if (loader) loader.updateProgress((++completedSteps / totalSteps) * 100);
     }
+
+    // FIXED: Wait for level to load first so collidables are ready
+    await levelModelPromise;
 
     //  Player
     let model;
@@ -154,7 +180,8 @@ export async function loadDemoLevel({
             '/src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
-                model.position.copy(playerSpawn);
+                model.position.copy(playerSpawn); // FIXED: Set spawn position
+                
                 model.traverse(function (object) {
                     if (object.isMesh) {
                         object.castShadow = true;
@@ -184,9 +211,6 @@ export async function loadDemoLevel({
 
                 const characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle', collidables);
 
-                ChestController.setPlayerModel(model);
-                console.log('Player initial position:', model.position.toArray());
-
                 if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
                 updateLoader();
                 resolve();
@@ -194,28 +218,31 @@ export async function loadDemoLevel({
         );
     });
     
-    //  Enemies
+    // Enemies
     const enemies = [];
     const enemyHealthBars = [];
-    const enemiesLoadPromise = playerLoadPromise.then(async (playerData) => {
-        for (const cfg of enemyConfigs) {
-            await new Promise(resolve => {
+    const enemiesLoadPromise = playerLoadPromise.then(async () => {
+        const enemyLoadPromises = enemyConfigs.map((cfg, index) => 
+            new Promise(resolve => {
                 const enemy = new EnemyMovement(scene, cfg.modelPath, cfg.pos, cfg.type, (enemyModel) => {
-                    const enemyLight = new THREE.PointLight(0xff0000, 1, 4);
-                    enemyLight.position.set(0, 0, 0);
-                    enemyModel.add(enemyLight);
+                        const enemyLight = new THREE.PointLight(0xff0000, 1, 4);
+                        enemyLight.position.set(0, 0, 0);
+                        enemyModel.add(enemyLight);
 
-                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
-                    enemy.healthBar = bar;
-                    enemyHealthBars.push(bar);
+                        const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
+                        enemy.healthBar = bar;
+                        enemyHealthBars.push(bar);
 
-                    updateLoader();
-                    resolve();
-                }, collidables);
-
+                        updateLoader();
+                        resolve(enemy);
+                    }, collidables);
+                
                 enemies.push(enemy);
-            });
-        }
+            })
+        );
+
+        await Promise.all(enemyLoadPromises);
+        
         if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
     });
 
@@ -226,26 +253,6 @@ export async function loadDemoLevel({
         updateLoader();
         return { animator, key };
     });
-
-    // ===== LOAD POTION MODEL =====
-    const artifactLoader = new GLTFLoader();
-    const potionPromise = new Promise((resolve) => {
-        artifactLoader.load(
-            '/src/models/artifacts/stylized_low_poly_potion_red.glb',
-            (gltf) => {
-                console.log('✓ Potion model loaded');
-                resolve(gltf.scene);
-            },
-            undefined,
-            (err) => { 
-                console.error('Potion load error:', err); 
-                resolve(null); 
-            }
-        );
-    });
-
-    const potionModel = await potionPromise;
-    // ===== END POTION LOADING =====
 
     //  Treasure Chests 
     const chestLoader = new GLTFLoader();
@@ -271,41 +278,7 @@ export async function loadDemoLevel({
                     
                     chest.name = `treasure_chest_${index}`;
                     scene.add(chest);
-
-                    // ===== ADD POTION TO CHEST =====
-                    let artifact = null;
-                    if (potionModel) {
-                        artifact = potionModel.clone();
-                        artifact.scale.set(0.08, 0.08, 0.08);
-                        artifact.rotation.set(0, 0, 0);
-                        
-                        artifact.traverse((obj) => {
-                            if (obj.isMesh) {
-                                obj.castShadow = true;
-                                obj.receiveShadow = true;
-                            }
-                        });
-                        
-                        console.log(`Chest ${index}: Potion added`);
-                    }
-                    // ===== END POTION SETUP =====
                     
-                    // Register chest
-                    const registeredChest = ChestController.registerChest(chest, {
-                        rotationAxis: 'y',
-                        openAngle: Math.PI / 2,
-                        pivotOffset: new THREE.Vector3(0, 0, 0.5),
-                        duration: 1.2,
-                        artifact: artifact
-                    });
-                    
-                    if (!registeredChest) {
-                        console.error(`Failed to register chest ${index}`);
-                    } else {
-                        console.log(`Chest ${index} registered successfully`);
-                    }
-                    
-                    // Collision box
                     const chestCollisionBox = new THREE.Mesh(
                         new THREE.BoxGeometry(2, 2, 2),
                         new THREE.MeshBasicMaterial({ visible: false })
@@ -313,12 +286,10 @@ export async function loadDemoLevel({
                     chestCollisionBox.position.copy(position);
                     chestCollisionBox.position.y = 1;
                     chestCollisionBox.name = `chest_collision_${index}`;
-                    // This mesh is used only as a proximity/trigger for opening the chest.
-                    // Do NOT mark it as staticCollision or add it to `collidables` so it doesn't
-                    // participate in the movement collision checks and won't block the player.
-                    chestCollisionBox.userData.isChestTrigger = true;
+                    chestCollisionBox.geometry.computeBoundsTree();
                     scene.add(chestCollisionBox);
-                    // intentionally not added to `collidables`
+                    
+                    collidables.push(chestCollisionBox);
                     
                     console.log(`Treasure chest ${index + 1} added at position:`, position);
                     updateLoader();
@@ -336,8 +307,6 @@ export async function loadDemoLevel({
     });
 
     await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, ...chestPromises]);
-    
-    console.log(`\n✓ Level loaded with ${ChestController.chests.length} chests`);
 }
 
 export function boxIntersectsMeshBVH(box, mesh) {
