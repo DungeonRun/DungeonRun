@@ -566,6 +566,8 @@ function animate() {
         }
     }
 
+    ChestController.update(delta);
+
 
         enemies.forEach(enemy => {
             enemy.update(delta, characterControls);
