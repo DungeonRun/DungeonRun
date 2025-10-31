@@ -125,7 +125,7 @@ export async function loadLevel3({
     const collidables = [...wallPlanes];
     collidables.push(floor);
 
-    const playerSpawn = new THREE.Vector3(0, -3, 0);
+    const playerSpawn = new THREE.Vector3(0, 1, 0);
 
     const enemyConfigs = [
         { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
@@ -157,6 +157,7 @@ export async function loadLevel3({
             '/src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
+                model.position.copy(playerSpawn);
                 model.traverse(function (object) {
                     if (object.isMesh) {
                         object.castShadow = true;
@@ -261,12 +262,11 @@ export async function loadLevel3({
                     chestCollisionBox.position.copy(position);
                     chestCollisionBox.position.y = 1;
                     chestCollisionBox.name = `chest_collision_${index}`;
-                    // mark chest collision boxes as static collision geometry
-                    chestCollisionBox.userData.staticCollision = true;
-                    if (chestCollisionBox.geometry && chestCollisionBox.geometry.computeBoundsTree) deferComputeBoundsTree(chestCollisionBox.geometry);
+                    // Keep this as a chest trigger only. Do NOT mark it as staticCollision
+                    // or add it to `collidables` so it doesn't block player movement.
+                    chestCollisionBox.userData.isChestTrigger = true;
                     scene.add(chestCollisionBox);
-                    
-                    collidables.push(chestCollisionBox);
+                    // intentionally not added to `collidables`
                     
                     console.log(`Treasure chest ${index + 1} added at position:`, position);
                     updateLoader();

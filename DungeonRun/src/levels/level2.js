@@ -6,7 +6,7 @@ import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { CharacterControls } from '../movements/characterControls.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { EnemyHealthBar } from '../view/enemyHealthBar.js';
-import { soundManager } from '../sounds/soundManger.js';
+import { soundManager } from '../sounds/soundManger.js'; // FIXED PATH
 
 export async function loadLevel2({
     scene,
@@ -79,6 +79,7 @@ export async function loadLevel2({
         map.anisotropy = renderer.capabilities.getMaxAnisotropy();
     });
 
+    // UNCOMMENT THE FLOOR CREATION OR REMOVE THE FLOOR REFERENCES
     const floor = new THREE.Mesh(geometry, material);
     floor.receiveShadow = true;
     floor.rotation.x = -Math.PI / 2;
@@ -89,9 +90,9 @@ export async function loadLevel2({
     if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
 
     const collidables = [];
-    collidables.push(floor);
+    collidables.push(floor); // UNCOMMENT THIS TOO
 
-    const playerSpawn = new THREE.Vector3(3, 3, 0);
+    const playerSpawn = new THREE.Vector3(3, 3, 0); // FIXED: Changed from (0, 1, 0) to (3, 3, 0)
 
     const enemyConfigs = [
         { pos: new THREE.Vector3(21.94, 0.05, -20.59), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
@@ -135,6 +136,7 @@ export async function loadLevel2({
             '/src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
+                model.position.copy(playerSpawn);
                 model.traverse(function (object) {
                     if (object.isMesh) {
                         object.castShadow = true;

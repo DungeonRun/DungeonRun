@@ -321,12 +321,12 @@ export async function loadDemoLevel({
                     chestCollisionBox.position.copy(position);
                     chestCollisionBox.position.y = 1;
                     chestCollisionBox.name = `chest_collision_${index}`;
-                    // defer BVH build for collision box and mark it static for triangle-level tests
-                    if (chestCollisionBox.geometry && chestCollisionBox.geometry.computeBoundsTree) deferComputeBoundsTree(chestCollisionBox.geometry);
-                    chestCollisionBox.userData.staticCollision = true;
+                    // This mesh is used only as a proximity/trigger for opening the chest.
+                    // Do NOT mark it as staticCollision or add it to `collidables` so it doesn't
+                    // participate in the movement collision checks and won't block the player.
+                    chestCollisionBox.userData.isChestTrigger = true;
                     scene.add(chestCollisionBox);
-                    
-                    collidables.push(chestCollisionBox);
+                    // intentionally not added to `collidables`
                     
                     console.log(`Treasure chest ${index + 1} added at position:`, position);
                     updateLoader();

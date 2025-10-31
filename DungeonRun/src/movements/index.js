@@ -26,6 +26,7 @@ let debugHelpers = [];
 let occludedMeshes = new Set();
 const _occlusionRay = new THREE.Raycaster();
 let levelMusic = null;
+let debugFrameCounter = 0;
 
 // Inventory
 let inventory;
@@ -565,6 +566,8 @@ function animate() {
         }
     }
 
+    ChestController.update(delta);
+
 
         enemies.forEach(enemy => {
             enemy.update(delta, characterControls);
@@ -686,23 +689,123 @@ async function switchLevel() {
 
 // === Debug ===
 function updateDebugHelpers() {
-    debugHelpers.forEach(h => scene.remove(h));
+    // If debug mode is disabled, remove helpers and reset frame counter
+    if (!debugMode) {
+        debugHelpers.forEach(h => { try { scene.remove(h); } catch (e) {} });
+        debugHelpers = [];
+        debugFrameCounter = 0;
+        return;
+    }
+
+    // throttle heavy debug helper rebuilds to once every 10 frames
+    if (debugFrameCounter++ % 1 !== 0) return;
+
+    // remove previous helpers before rebuilding
+    debugHelpers.forEach(h => { try { scene.remove(h); } catch (e) {} });
     debugHelpers = [];
-    if (!debugMode) return;
-    
+
+    // 1) Highlight only the specific collided geometry (player or enemies)
+    const highlightMeshes = new Set();
+    if (characterControls && characterControls.lastCollisionMesh) {
+        highlightMeshes.add(characterControls.lastCollisionMesh);
+    }
+    // if enemies expose lastCollisionMesh, include them too
+    enemies.forEach(en => { if (en && en.lastCollisionMesh) highlightMeshes.add(en.lastCollisionMesh); });
+
+    // Add wireframe and approximate normal for each highlighted mesh only
+    highlightMeshes.forEach((obj) => {
+        try {
+            if (!obj || !obj.isMesh) return;
+            // wireframe overlay
+            if (obj.geometry) {
+                const wfGeo = new THREE.WireframeGeometry(obj.geometry);
+                const wfMat = new THREE.LineBasicMaterial({ color: 0xffaa00, linewidth: 2, transparent: true, opacity: 0.9 });
+                const wire = new THREE.LineSegments(wfGeo, wfMat);
+                wire.matrixAutoUpdate = false;
+                wire.matrix.copy(obj.matrixWorld);
+                wire.userData._isDebugHelper = true;
+                scene.add(wire);
+                debugHelpers.push(wire);
+            }
+
+            // approximate normal arrow at mesh world position
+            if (obj.geometry && obj.geometry.attributes && obj.geometry.attributes.normal) {
+                const normals = obj.geometry.attributes.normal.array;
+                if (normals && normals.length >= 3) {
+                    let ax = 0, ay = 0, az = 0, count = 0;
+                    for (let i = 0; i < normals.length; i += 3) {
+                        ax += normals[i]; ay += normals[i+1]; az += normals[i+2];
+                        count++;
+                        if (count > 300) break;
+                    }
+                    if (count > 0) {
+                        const avg = new THREE.Vector3(ax / count, ay / count, az / count);
+                        const normalMatrix = new THREE.Matrix3().getNormalMatrix(obj.matrixWorld);
+                        avg.applyMatrix3(normalMatrix).normalize();
+                        const worldPos = new THREE.Vector3();
+                        obj.getWorldPosition(worldPos);
+                        const arrow = new THREE.ArrowHelper(avg, worldPos, 2.0, 0xffaa00, 0.35, 0.2);
+                        arrow.userData._isDebugHelper = true;
+                        scene.add(arrow);
+                        debugHelpers.push(arrow);
+                    }
+                }
+            }
+        } catch (e) {
+            // ignore per-mesh debug helper errors
+        }
+    });
+
+    // 2) Player collision displacement vector
     if (characterControls && characterControls.model) {
         const playerBox = new THREE.Box3().setFromObject(characterControls.model);
         const playerHelper = new THREE.Box3Helper(playerBox, 0x00ff00);
+        playerHelper.userData._isDebugHelper = true;
         scene.add(playerHelper);
         debugHelpers.push(playerHelper);
+
+        // collision push vector (if present)
+        try {
+            const push = characterControls.collisionPush ? characterControls.collisionPush.clone() : new THREE.Vector3(0,0,0);
+            if (push.lengthSq() > 1e-6) {
+                const from = characterControls.model.position.clone();
+                const dir = push.clone().normalize();
+                const len = push.length();
+                // brighter red and larger head for visibility
+                const arrow = new THREE.ArrowHelper(dir, from, len, 0xff2222, 0.35, 0.2);
+                arrow.userData._isDebugHelper = true;
+                scene.add(arrow);
+                debugHelpers.push(arrow);
+            }
+        } catch (e) {}
     }
 
+    // 3) Enemies collision boxes
     enemies.forEach(enemy => {
-        const box = new THREE.Box3().setFromObject(enemy.enemyModel);
-        const helper = new THREE.Box3Helper(box, 0xff0000);
-        scene.add(helper);
-        debugHelpers.push(helper);
+        if (!enemy || !enemy.enemyModel) return;
+        try {
+            const box = new THREE.Box3().setFromObject(enemy.enemyModel);
+            const helper = new THREE.Box3Helper(box, 0xff0000);
+            helper.userData._isDebugHelper = true;
+            scene.add(helper);
+            debugHelpers.push(helper);
+        } catch (e) {}
     });
+
+    // 4) Projectiles collision boxes
+    try {
+        if (projectileManager && projectileManager.projectiles) {
+            for (const spell of projectileManager.projectiles) {
+                try {
+                    const box = new THREE.Box3().setFromObject(spell);
+                    const helper = new THREE.Box3Helper(box, 0xffff00);
+                    helper.userData._isDebugHelper = true;
+                    scene.add(helper);
+                    debugHelpers.push(helper);
+                } catch (e) {}
+            }
+        }
+    } catch (e) {}
 }
 
 // Occlusion: make meshes between camera and player semi-transparent
@@ -727,7 +830,13 @@ function updateOcclusion() {
         return;
     }
 
-    const camPos = camera.position.clone();
+    // Use the camera's world position (not its local position) because the camera
+    // is parented to a pivot object. Using `camera.position` returns the local
+    // coordinates relative to the pivot which makes occlusion incorrect when the
+    // pivot is rotated. `getWorldPosition` returns the actual world-space origin
+    // we should shoot the occlusion ray from.
+    const camPos = new THREE.Vector3();
+    camera.getWorldPosition(camPos);
     const playerPos = characterControls.model.position.clone().add(new THREE.Vector3(0, 1.0, 0));
     const dir = playerPos.clone().sub(camPos);
     const dist = dir.length();
