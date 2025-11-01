@@ -139,6 +139,12 @@ class Chest {
         if (t >= 1) {
             this._from = this._to = null;
             console.log(`Chest ${this.isOpen ? 'FULLY OPENED' : 'FULLY CLOSED'}`);
+            // notify listener (if any) that animation finished
+            try {
+                if (this._onFinish && typeof this._onFinish === 'function') {
+                    this._onFinish(this.isOpen);
+                }
+            } catch (e) { }
         }
     }
 }
@@ -159,6 +165,9 @@ export const ChestController = {
         this.playerModel = model;
         console.log('ChestController: player model set');
     },
+
+    // busy flag prevents re-entry while a chest is animating
+    _busy: false,
 
     registerChest(root, opts = {}) {
         const names = opts.lidNames || ['Lid', 'Lid.001', 'lid', 'lid.001', 'lid001'];
@@ -210,33 +219,83 @@ export const ChestController = {
     },
 
     tryInteract(maxDistance = 3) {
+        // backward-compatible quick toggles. If controller is busy, ignore.
         if (!this.playerModel) {
             console.warn('No player model set');
             return false;
         }
-        
+        if (this._busy) return false;
+
         const playerPos = this.playerModel.position;
         let closest = null;
         let minDist = maxDistance;
-        
+
         for (const chest of this.chests) {
             const chestPos = new THREE.Vector3();
             chest.root.getWorldPosition(chestPos);
             const dist = playerPos.distanceTo(chestPos);
-            
+
             if (dist < minDist) {
                 minDist = dist;
                 closest = chest;
             }
         }
-        
+
         if (closest) {
             console.log(`Interacting with chest at distance ${minDist.toFixed(2)}m`);
+            // quick toggle without syncing to player animation
             closest.toggle();
             return true;
         }
-        
+
         return false;
+    },
+
+    // New: interact with chest while coordinating with the player's open animation
+    interactWithPlayer(playerControls, maxDistance = 3) {
+        if (!this.playerModel || !playerControls) return false;
+        if (this._busy) return false;
+
+        const playerPos = this.playerModel.position;
+        let closest = null;
+        let minDist = maxDistance;
+
+        for (const chest of this.chests) {
+            const chestPos = new THREE.Vector3();
+            chest.root.getWorldPosition(chestPos);
+            const dist = playerPos.distanceTo(chestPos);
+            if (dist < minDist) {
+                minDist = dist;
+                closest = chest;
+            }
+        }
+
+        if (!closest) return false;
+
+            // mark busy to prevent re-entry
+            this._busy = true;
+
+            try {
+                // Schedule chest open after 2 seconds. Do not interrupt or play player animation.
+                const OPEN_DELAY_MS = 2000;
+                setTimeout(() => {
+                    try {
+                        // set a finish callback on the chest to clear busy when done
+                        closest._onFinish = (isOpen) => {
+                            try {
+                                this._busy = false;
+                            } catch (e) {}
+                        };
+                        closest.toggle();
+                    } catch (e) { this._busy = false; }
+                }, OPEN_DELAY_MS);
+            } catch (e) {
+                this._busy = false;
+                console.warn('Error scheduling chest interaction', e);
+                return false;
+            }
+
+            return true;
     },
 
     update(dt) {

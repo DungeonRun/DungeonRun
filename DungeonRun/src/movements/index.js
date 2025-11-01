@@ -12,6 +12,9 @@ import { PauseMenuUI } from '../view/pauseMenuUI.js';
 import { GameTimerUI } from '../view/timerUI.js';
 import { ChestController } from '../ChestController.js';
 import { EnemyCountUI } from '../view/enemyCountUI.js';
+import KillParticleManager from '../particles/killParticles.js';
+import DisposalManager from '../utils/disposalManager.js';
+import { soundManager } from '../sounds/soundManger.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -28,6 +31,7 @@ let occludedMeshes = new Set();
 const _occlusionRay = new THREE.Raycaster();
 let levelMusic = null;
 let debugFrameCounter = 0;
+let _fpsSmoothed = 60.0;
 
 // Inventory
 let inventory;
@@ -118,7 +122,8 @@ function updateDebugOverlay() {
     const projCount = projectileManager ? (projectileManager.projectiles ? projectileManager.projectiles.length : 0) : (projectiles ? projectiles.length : 0);
     const enemyCount = enemies ? enemies.length : 0;
     const collision = (characterControls && characterControls.lastCollision) ? characterControls.lastCollision : 'none';
-    debugOverlay.textContent = `pos: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}\naction: ${action}\nhealth: ${health}\nselected: ${selected}\nkeyGrabbed: ${isKeyGrabbed}\nprojectiles: ${projCount}\nenemies: ${enemyCount}\ncollision: ${collision}`;
+    const particleCount = killParticleManager ? killParticleManager.activeSystems.length : 0;
+    debugOverlay.textContent = `pos: ${pos.x.toFixed(2)}, ${pos.y.toFixed(2)}, ${pos.z.toFixed(2)}\naction: ${action}\nhealth: ${health}\nselected: ${selected}\nkeyGrabbed: ${isKeyGrabbed}\nprojectiles: ${projCount}\nparticles: ${particleCount}\nenemies: ${enemyCount}\ncollision: ${collision}\nFPS: ${_fpsSmoothed.toFixed(1)}`;
 }
 
 // Level state
@@ -129,12 +134,16 @@ let enemies = [];
 // UI Elements
 let gameOverUI;
 let loader;
-let keyDisplay;
+//let keyDisplay;
 
 // Projectiles
 const projectileManager = new ProjectileManager(scene, enemies);
 let projectiles = [];
 let removalQueue = [];
+// Particle effects for kills
+const killParticleManager = new KillParticleManager(scene);
+// Staged disposal manager to avoid big spikes when removing many meshes
+const disposalManager = new DisposalManager(scene, 2);
 
 // Chest interaction state
 let isHoldingChestKey = false;
@@ -163,7 +172,7 @@ function clearScene() {
     if (gameOverUI) gameOverUI.remove();
     if (gameTimer) gameTimer.remove();
     if (inventory) inventory.remove();
-    if (keyDisplay) keyDisplay.remove();
+    //if (keyDisplay) keyDisplay.remove();
                                                              
         // remove enemies-left UI if present (avoid it showing during loading)
         if (enemyCountUI) {
@@ -174,6 +183,8 @@ function clearScene() {
 
 // === Cleanup Current Level ===
 function cleanupCurrentLevel() {
+    // stop music and ensure pending disposals are handled early to avoid overlap
+    try { stopAllMusicAndFlushDisposals(); } catch (e) {}
     switch (currentLevel) {
         case 1:
             cleanupDemoLevel();
@@ -188,6 +199,20 @@ function cleanupCurrentLevel() {
             cleanupDemoLevel();
     }
     console.log(`✓ Cleaned up Level ${currentLevel}`);
+}
+
+// Ensure music stops and pending disposals are processed during a full cleanup
+function stopAllMusicAndFlushDisposals() {
+    try {
+        // prefer centralized sound manager which ensures only one music track plays
+        try { soundManager.stopCurrentMusic(); } catch (e) {}
+        // legacy fallback: if a raw audio reference exists, try to pause it
+        if (levelMusic) {
+            try { levelMusic.pause(); } catch (e) {}
+            levelMusic = null;
+        }
+    } catch (e) {}
+    try { disposalManager.flushAll(); } catch (e) {}
 }
 
 // === Load Level ===
@@ -220,6 +245,17 @@ async function loadLevel(levelLoader, levelName = '') {
 
     loader.hide();
 
+    // Ensure world matrices & collision bounds are up-to-date to avoid
+    // initial-frame collisions where collidables were added after the player.
+    try { scene.updateMatrixWorld(true); } catch (e) {}
+    // Snap player to ground immediately if possible (prevents player being pushed incorrectly)
+    try {
+        if (characterControls && characterControls.model) {
+            const groundY = characterControls._sampleGroundHeight(characterControls.model.position);
+            if (groundY !== null) characterControls.model.position.y = groundY + (characterControls.groundOffset || 0.05);
+        }
+    } catch (e) {}
+
     // play level-specific music (level1.mp3, level2.mp3, ... in src/sounds)
     try {
         playMusicForLevel(currentLevel);
@@ -237,7 +273,7 @@ async function loadLevel(levelLoader, levelName = '') {
     gameOverUI = new GameOverUI();
     pauseMenuUI = new PauseMenuUI();
     inventory = new Inventory();
-    keyDisplay = new KeyDisplay();
+    //keyDisplay = new KeyDisplay();
     // enemies left UI
     enemyCountUI = new EnemyCountUI({ count: enemies.length });
 }
@@ -245,16 +281,10 @@ async function loadLevel(levelLoader, levelName = '') {
 function playMusicForLevel(level) {
     // stop previous
     try {
-        if (levelMusic) {
-            levelMusic.pause();
-            levelMusic = null;
-        }
+        // Use central sound manager to avoid overlapping music instances
         const path = `../../src/sounds/level${level}.mp3`;
-        levelMusic = new Audio(path);
-        levelMusic.loop = true;
-        levelMusic.volume = 0.45;
-        // ignore play promise rejection (autoplay policy) — will play after user gesture
-        levelMusic.play().catch(() => {});
+        const music = soundManager.playLevelMusic(path);
+        levelMusic = music || null; // keep reference for legacy callers
     } catch (e) {
         console.warn('playMusicForLevel error', e);
     }
@@ -265,9 +295,9 @@ const keysPressed = {};
 document.addEventListener('keydown', (event) => {
     if (loader && loader.isLoading) return;
 
-    // F1 key to toggle pause
-    if (event.key === 'm') {
-        event.preventDefault(); // Prevent browser's default F1 behavior
+    // Toggle pause (only on initial press) — avoid auto-repeat toggling pause continuously
+    if (event.code === 'KeyM' && !event.repeat) {
+        event.preventDefault();
         togglePause();
         return;
     }
@@ -276,7 +306,7 @@ document.addEventListener('keydown', (event) => {
 
     // Always mark the key as pressed for continuous controls
     keysPressed[event.code] = true;
-    if (keyDisplay) keyDisplay.down(event.code);
+    //if (keyDisplay) keyDisplay.down(event.code);
 
     // One-shot actions should only run on initial keydown (avoid heavy repeated work during auto-repeat)
     const firstPress = !event.repeat;
@@ -293,23 +323,11 @@ document.addEventListener('keydown', (event) => {
         if (playerPos.distanceTo(keyPos) < 1.0) grabKey();
     }
 
-    // Chest interaction - T key (hold to open)
+    // Chest interaction - T key (single press)
     if (firstPress && event.code === 'KeyT' && characterControls) {
-        const nearestDist = ChestController.getNearestChestDistance();
-        if (nearestDist < 3) {
-            isHoldingChestKey = true;
-            chestKeyHoldTime = 0;
-            characterControls.playOpen();
-        }
-    }
-
-    // Quick chest toggle - C key (instant toggle)
-    if (firstPress && event.code === 'KeyC' && characterControls) {
-        const interacted = ChestController.tryInteract();
+        const interacted = ChestController.interactWithPlayer(characterControls);
         if (interacted) {
-            console.log('✓ Chest toggled');
-        } else {
-            console.log('No chest nearby to interact with');
+            console.log('✓ Chest interaction scheduled (2s delay)');
         }
     }
     // Inventory controls (1=punch, 2=sword, 3=spell) - only on initial press
@@ -341,7 +359,7 @@ document.addEventListener('keydown', (event) => {
 document.addEventListener('keyup', (event) => {
     if ((loader && loader.isLoading) || isPaused) return;
     keysPressed[event.code] = false;
-    if (keyDisplay) keyDisplay.up(event.code);
+    //if (keyDisplay) keyDisplay.up(event.code);
 
     // Stop chest opening when T is released
     if (event.code === 'KeyT') {
@@ -359,10 +377,10 @@ function grabKey() {
     gameTimer.stop();
     characterControls.playPickup();
 
-    if (keyDisplay) {
-        keyDisplay.updateKeyStatus('yes');
-        keyDisplay.up('KeyE');
-    }
+    //if (keyDisplay) {
+    //    keyDisplay.updateKeyStatus('yes');
+    //    keyDisplay.up('KeyE');
+    //}
 
     keysPressed['KeyE'] = false;
 
@@ -463,16 +481,43 @@ function spawnAttackHitbox(type) {
             hitbox.debugMesh.visible = !!debugMode;
         }
 
-        // check enemies using cached radii
+        // check enemies using cached radii; compute world-space bounding-center for more accurate checks
         for (let i = 0; i < enemies.length; ++i) {
             const enemy = enemies[i];
             if (!enemy || !enemy.enemyModel) continue;
-            const enemyPos = enemy.enemyModel.position;
-            const enemyRadius = (enemy.enemyModel.userData && enemy.enemyModel.userData.radius) ? enemy.enemyModel.userData.radius : 1.0;
+            // get world position of enemy model
+            const enemyCenter = new THREE.Vector3();
+            try {
+                // Prefer bounding-box center in world space (accounts for model offsets)
+                const b = new THREE.Box3().setFromObject(enemy.enemyModel);
+                if (b && !b.isEmpty()) {
+                    b.getCenter(enemyCenter);
+                } else {
+                    enemy.enemyModel.getWorldPosition(enemyCenter);
+                }
+            } catch (e) {
+                try { enemy.enemyModel.getWorldPosition(enemyCenter); } catch (e2) { enemyCenter.copy(enemy.enemyModel.position); }
+            }
+
+            // try to get cached radius, else compute bounding box and cache it (one-time)
+            let enemyRadius = 1.0;
+            try {
+                if (enemy.enemyModel.userData && enemy.enemyModel.userData.radius) {
+                    enemyRadius = enemy.enemyModel.userData.radius;
+                } else {
+                    const b2 = new THREE.Box3().setFromObject(enemy.enemyModel);
+                    const sz = new THREE.Vector3(); b2.getSize(sz);
+                    enemyRadius = Math.max(sz.x, sz.y, sz.z) * 0.5;
+                    if (!enemy.enemyModel.userData) enemy.enemyModel.userData = {};
+                    enemy.enemyModel.userData.radius = enemyRadius;
+                }
+            } catch (e) {}
+
             const hitExtent = Math.max(cfg.size.x, cfg.size.z) * 0.5;
             const r = enemyRadius + hitExtent;
-            if (center.distanceToSquared(enemyPos) <= r * r) {
+            if (center.distanceToSquared(enemyCenter) <= r * r) {
                 if (!hitbox.hits.has(enemy)) {
+                    // register damage
                     enemy.health = Math.max(0, enemy.health - cfg.damage);
                     if (enemy.healthBar) enemy.healthBar.setHealth(enemy.health);
                     hitbox.hits.add(enemy);
@@ -529,6 +574,8 @@ function togglePause() {
 const clock = new THREE.Clock();
 function animate() {
     const delta = clock.getDelta();
+    const instFps = delta > 0 ? 1.0 / delta : 60.0;
+    _fpsSmoothed = THREE.MathUtils.lerp(_fpsSmoothed, instFps, 0.08);
 
     if (loader && loader.isLoading || isGameOver) {
         loader.render();
@@ -539,53 +586,90 @@ function animate() {
     if (!isPaused) {
         if (characterControls) {
             characterControls.update(delta, keysPressed);
-
-            // Handle chest opening with T key held
-            if (isHoldingChestKey) {
-                chestKeyHoldTime += delta;
-                if (chestKeyHoldTime >= CHEST_OPEN_HOLD_TIME) {
-                    const interacted = ChestController.tryInteract();
-                    if (interacted) console.log('✓ Chest opened after holding T');
-                    isHoldingChestKey = false;
-                    chestKeyHoldTime = 0;
-                }
-            }
         }
 
         // Death animation on health <= 0
         if (characterControls.health <= 0 && !isGameOver) {
-            characterControls.playDeath();
-            isGameOver = true; // Prevent repeated triggers
-            if (gameTimer) gameTimer.stop();
+                // Play death animation and then immediately show Game Over (avoid waiting for callbacks)
+                        try {
+                            try { characterControls.playDeath(); } catch (e) {}
+                            // mark game over state to avoid re-triggering
+                            isGameOver = true;
 
-            if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
-                document.exitPointerLock();
-            }
-            const cameraPosition = camera.position.clone();
-            const cameraRotation = camera.rotation.clone();
-            setTimeout(() => {
-                //if (characterControls.model) { scene.remove(characterControls.model); }
-            },1000)
-            
-            gameOverUI.show(() => {
-                // ⚠️ CLEANUP BEFORE RESTARTING LEVEL ⚠️
-                cleanupCurrentLevel();
-                loadLevel(loadDemoLevel);
-            });
-            characterControls = null;
+                            if (gameTimer) gameTimer.stop();
+                            if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
+                                document.exitPointerLock();
+                            }
+
+                            // Stop music immediately when player dies and then show Game Over shortly after.
+                            try { stopAllMusicAndFlushDisposals(); } catch (e) {}
+                            // We avoid relying on callbacks that may be missing; 1200ms is a reasonable default.
+                            setTimeout(() => {
+                                try {
+                                    gameOverUI.show(async () => {
+                                        // ensure any active loader is hidden before restarting
+                                        try { if (loader) loader.hide(); } catch (e) {}
+                                        try { stopAllMusicAndFlushDisposals(); } catch (e) {}
+                                        cleanupCurrentLevel();
+                                        await loadLevel(loadDemoLevel);
+                                    });
+                                } catch (e) { console.warn('Error showing gameOverUI', e); }
+                            }, 1200);
+
+                        } catch (e) {
+                            // fallback behaviour: ensure game over still shows
+                            isGameOver = true;
+                            if (gameTimer) gameTimer.stop();
+                                try {
+                                    // ensure music stopped before showing Game Over
+                                    try { stopAllMusicAndFlushDisposals(); } catch (e) {}
+                                    gameOverUI.show(async () => {
+                                        try { if (loader) loader.hide(); } catch (e) {}
+                                        try { stopAllMusicAndFlushDisposals(); } catch (e) {}
+                                        cleanupCurrentLevel();
+                                        await loadLevel(loadDemoLevel);
+                                    });
+                                } catch (e) {}
+                        }
         }
     }
 
-    ChestController.update(delta);
+        ChestController.update(delta);
 
+            // Distance-based culling for enemies (only cull by distance > 40 units)
+            try {
+                camera.updateMatrixWorld();
+                const cameraWorldPos = new THREE.Vector3();
+                camera.getWorldPosition(cameraWorldPos);
+                const tmpEnemyPos = new THREE.Vector3();
 
-        enemies.forEach(enemy => {
-            enemy.update(delta, characterControls);
-            if (enemy.healthBar) {
-                enemy.healthBar.setHealth(enemy.health);
-                enemy.healthBar.update(camera);
+                enemies.forEach(enemy => {
+                    try {
+                        if (!enemy || !enemy.enemyModel) return;
+                        enemy.enemyModel.getWorldPosition(tmpEnemyPos);
+                        const distSq = tmpEnemyPos.distanceToSquared(cameraWorldPos);
+                        const tooFar = distSq > (40 * 40);
+                        if (tooFar) {
+                            if (enemy.enemyModel.visible) enemy.enemyModel.visible = false;
+                            if (enemy.healthBar && enemy.healthBar.group) enemy.healthBar.group.visible = false;
+                            return;
+                        }
+                        // nearby: update as normal
+                        if (!enemy.enemyModel.visible) enemy.enemyModel.visible = true;
+                        enemy.update(delta, characterControls);
+                        if (enemy.healthBar) {
+                            enemy.healthBar.setHealth(enemy.health);
+                            enemy.healthBar.update(camera);
+                        }
+                    } catch (e) { /* per-enemy defensive */ }
+                });
+            } catch (e) {
+                // fallback: conservative update
+                enemies.forEach(enemy => {
+                    try { if (enemy) enemy.update(delta, characterControls); } catch (e) {}
+                    try { if (enemy && enemy.healthBar) { enemy.healthBar.setHealth(enemy.health); enemy.healthBar.update(camera); } } catch (e) {}
+                });
             }
-        });
 
         // batch enemy removals to avoid single-frame spikes
         for (let i = enemies.length - 1; i >= 0; i--) {
@@ -595,17 +679,46 @@ function animate() {
                 enemies.splice(i, 1);
             }
         }
-        // process up to 2 removals per frame
+        // process up to 2 removals per frame, but stagger heavy disposal via DisposalManager
         let removalsThisFrame = 0;
         while (removalQueue.length > 0 && removalsThisFrame < 2) {
             const enemy = removalQueue.shift();
             try {
-                if (enemy.enemyModel) scene.remove(enemy.enemyModel);
-                if (enemy.healthBar) enemy.healthBar.remove();
-                if (enemy.debugHelper) {
-                    scene.remove(enemy.debugHelper);
-                    enemy.debugHelper = null;
-                }
+                // spawn small kill particle burst before removing visual model
+                try {
+                        if (enemy && enemy.enemyModel) {
+                        // spawn death particles slightly above the model and use stronger upward spread
+                        const pos = enemy.enemyModel.position.clone();
+                        killParticleManager.spawn(pos, { count: 24, offsetY: 1.0, upwardSpread: 2.0 });
+                    }
+                } catch (e) {}
+
+                // Immediately make model invisible and non-interactive
+                try {
+                    if (enemy && enemy.enemyModel) {
+                        enemy.enemyModel.visible = false;
+                        // stop animations if any
+                        if (enemy.mixer && typeof enemy.mixer.stopAllAction === 'function') {
+                            try { enemy.mixer.stopAllAction(); } catch (e) {}
+                        }
+                        // Queue for staged disposal to avoid spikes
+                        try { disposalManager.enqueue(enemy.enemyModel); } catch (e) { try { if (enemy.enemyModel.parent) enemy.enemyModel.parent.remove(enemy.enemyModel); } catch (e) {} }
+                    }
+                } catch (e) {}
+
+                // remove healthbar immediately (UI element)
+                try { if (enemy.healthBar) enemy.healthBar.remove(); } catch (e) {}
+
+                // debug helper remove or queue
+                try {
+                    if (enemy.debugHelper) {
+                        try { scene.remove(enemy.debugHelper); } catch (e) {}
+                        // debugHelper likely small; attempt disposal
+                        try { disposalManager.enqueue(enemy.debugHelper); } catch (e) {}
+                        enemy.debugHelper = null;
+                    }
+                } catch (e) {}
+
             } catch (e) { console.warn('Error removing enemy:', e); }
             removalsThisFrame++;
         }
@@ -624,42 +737,47 @@ function animate() {
             const playerPos = characterControls.model.position;
             const distance = playerPos.distanceTo(keyObject.position);
             if (distance < 3) {
-                if (keyDisplay) {
-                    keyDisplay.down('KeyR');
-                }
+                //if (keyDisplay) {
+                //    keyDisplay.down('KeyR');
+                //}
                 if (distance < 3 && distance > 2) {
                     console.log('Press R to grab the key!');
                 }
             } else {
-                if (keyDisplay) {
-                    keyDisplay.up('KeyR');
-                }
+                //if (keyDisplay) {
+                //    keyDisplay.up('KeyR');
+                //}
             }
         } else {
-            if (keyDisplay) {
-                keyDisplay.up('KeyR');
-            }
+            //if (keyDisplay) {
+            //    keyDisplay.up('KeyR');
+            //}
         }
     } else {
-        if (keyDisplay) {
-            keyDisplay.up('KeyR');
-        }
+        //if (keyDisplay) {
+        //    keyDisplay.up('KeyR');
+        //}
     }
 
         // Chest prompts (T hold, C toggle)
-        if (characterControls && keyDisplay) {
+        //if (characterControls && keyDisplay) {
+        if (characterControls) {
             const nearestChestDistance = ChestController.getNearestChestDistance();
             if (nearestChestDistance < 3) {
-                keyDisplay.down('KeyT');
-                keyDisplay.down('KeyC');
+               //keyDisplay.down('KeyT');
             } else {
-                keyDisplay.up('KeyT');
-                keyDisplay.up('KeyC');
+                //keyDisplay.up('KeyT');
             }
         }
 
         projectileManager.enemies = enemies;
         projectileManager.update(delta);
+
+        // update short-lived particle systems
+    try { killParticleManager.update(delta); } catch (e) {}
+
+    // process staged disposals (a few objects per frame)
+    try { disposalManager.update(); } catch (e) {}
 
         if (thirdPersonCamera) {
             thirdPersonCamera.Update(delta);
@@ -935,7 +1053,7 @@ function onWindowResize() {
     camera.aspect = window.innerWidth / window.innerHeight;
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
-    if (keyDisplay) keyDisplay.updatePosition();
+    //if (keyDisplay) keyDisplay.updatePosition();
 }
 window.addEventListener('resize', onWindowResize);
 

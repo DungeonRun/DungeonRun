@@ -216,6 +216,8 @@ export async function loadLevel2({
                     }
                 });
                 scene.add(levelModel);
+                // ensure world matrices are up-to-date so collidable bounds are correct immediately
+                try { levelModel.updateMatrixWorld(true); } catch (e) {}
                 levelModel.traverse(obj => {
                     if (obj.isMesh) collidables.push(obj);
                 });
@@ -273,6 +275,7 @@ export async function loadLevel2({
                     if (chestCollisionBox.geometry && chestCollisionBox.geometry.computeBoundsTree)
                         deferComputeBoundsTree(chestCollisionBox.geometry);
                     scene.add(chestCollisionBox);
+                    try { chestCollisionBox.updateMatrixWorld(true); } catch (e) {}
 
                     collidables.push(chestCollisionBox);
                     console.log(`Treasure chest ${index + 1} added at position:`, position);

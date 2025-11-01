@@ -189,6 +189,23 @@ export class Inventory {
       progress.appendChild(progressFill);
 
       slot.appendChild(label);
+      // human-readable item text (e.g., punch, swing, spell)
+      const itemText = document.createElement('div');
+      itemText.classList.add('item-text');
+      itemText.style.position = 'absolute';
+      itemText.style.bottom = '6px';
+      itemText.style.left = '50%';
+      itemText.style.transform = 'translateX(-50%)';
+      itemText.style.fontSize = '12px';
+      itemText.style.color = '#ffb4a3';
+      itemText.style.textTransform = 'capitalize';
+      itemText.style.fontWeight = '700';
+      itemText.style.letterSpacing = '0.6px';
+      itemText.style.textShadow = '0 0 6px #220000';
+      itemText.style.userSelect = 'none';
+      itemText.style.pointerEvents = 'none';
+      itemText.textContent = this.items[i] || '';
+      slot.appendChild(itemText);
       slot.appendChild(greyOverlay);
       slot.appendChild(progress);
 
