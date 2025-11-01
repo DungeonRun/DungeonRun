@@ -113,13 +113,22 @@ export class ProjectileManager {
             const spellPos = spell.position;
             const spellRadius = 0.5; // matches geometry
             let collided = false;
+            // temp containers to avoid allocations per-enemy
+            const tmpBox = ProjectileManager._tmpBox || (ProjectileManager._tmpBox = new THREE.Box3());
+            const tmpCenter = ProjectileManager._tmpCenter || (ProjectileManager._tmpCenter = new THREE.Vector3());
             for (let j = 0; j < this.enemies.length; ++j) {
                 const enemy = this.enemies[j];
                 if (!enemy || !enemy.enemyModel) continue;
-                const enemyPos = enemy.enemyModel.position;
+                // compute enemy's visual hitbox center (not rely on model origin)
+                // Use cached world position and precomputed radius to avoid expensive setFromObject
+                try {
+                    enemy.enemyModel.getWorldPosition(tmpCenter);
+                } catch (e) {
+                    tmpCenter.copy(enemy.enemyModel.position);
+                }
                 const enemyRadius = (enemy.enemyModel.userData && enemy.enemyModel.userData.radius) ? enemy.enemyModel.userData.radius : 1.0;
                 const r = spellRadius + enemyRadius;
-                const d2 = spellPos.distanceToSquared(enemyPos);
+                const d2 = spellPos.distanceToSquared(tmpCenter);
                 if (d2 <= r * r) {
                     // allow a spell to hit multiple enemies but only once per enemy
                     if (!spell.userData.hitSet.has(enemy)) {

@@ -52,10 +52,10 @@ export async function loadLevel2({
     //  Floor
     const textureLoader = new THREE.TextureLoader();
     const [sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion] = await Promise.all([
-        textureLoader.loadAsync('/sand/Sand 002_COLOR.jpg'),
-        textureLoader.loadAsync('/sand/Sand 002_NRM.jpg'),
-        textureLoader.loadAsync('/sand/Sand 002_DISP.jpg'),
-        textureLoader.loadAsync('/sand/Sand 002_OCC.jpg')
+        textureLoader.loadAsync('../../src/textures/sand/Sand 002_COLOR.jpg'),
+        textureLoader.loadAsync('../../src/textures/sand/Sand 002_NRM.jpg'),
+        textureLoader.loadAsync('../../src/textures/sand/Sand 002_DISP.jpg'),
+        textureLoader.loadAsync('../../src/textures/sand/Sand 002_OCC.jpg')
     ]);
 
     const WIDTH = 80, LENGTH = 80;
@@ -95,17 +95,17 @@ export async function loadLevel2({
     const playerSpawn = new THREE.Vector3(3, 3, 0); // FIXED: Changed from (0, 1, 0) to (3, 3, 0)
 
     const enemyConfigs = [
-        { pos: new THREE.Vector3(21.94, 0.05, -20.59), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(16.44, 0.05, -21.36), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(34.17, 0.05, -20.8), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(81.69, 0.15, -29.49), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
-        { pos: new THREE.Vector3(71.34, 0.15, -35.88), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
-        { pos: new THREE.Vector3(101.23, 0.05, -80.53), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
-        { pos: new THREE.Vector3(97.82, 0.05, -105.39), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(89.03, 0.15, -151.41), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
-        { pos: new THREE.Vector3(101.16, 0.15, -173.29), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
-        { pos: new THREE.Vector3(121.08, 0.15, -159.28), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
-        { pos: new THREE.Vector3(101.32, 0.15, -152.95), type: "boss", modelPath: "/src/animations/enemies/boss.glb" }
+        { pos: new THREE.Vector3(21.94, 0.05, -20.59), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(16.44, 0.05, -21.36), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(34.17, 0.05, -20.8), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(81.69, 0.15, -29.49), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(71.34, 0.15, -35.88), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(101.23, 0.05, -80.53), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(97.82, 0.05, -105.39), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(89.03, 0.15, -151.41), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
+        { pos: new THREE.Vector3(101.16, 0.15, -173.29), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
+        { pos: new THREE.Vector3(121.08, 0.15, -159.28), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
+        { pos: new THREE.Vector3(101.32, 0.15, -152.95), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" }
     ];
 
     const chestPositions = [
@@ -133,7 +133,7 @@ export async function loadLevel2({
     let model;
     const playerLoadPromise = new Promise(resolve => {
         new GLTFLoader().load(
-            '/src/animations/avatar/avatar2.glb',
+            '../../src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
                 model.position.copy(playerSpawn);
@@ -182,7 +182,8 @@ export async function loadLevel2({
                     enemyLight.position.set(0, 0, 0);
                     enemyModel.add(enemyLight);
 
-                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
+                    // ensure health bar uses enemy's configured health so it's full at spawn
+                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: enemy.health });
                     enemy.healthBar = bar;
                     enemyHealthBars.push(bar);
                     updateLoader();
@@ -200,8 +201,8 @@ export async function loadLevel2({
     const levelModelPromise = new Promise(resolve => {
         const levelLoader = new GLTFLoader();
         levelLoader.load(
-            '/src/levels/level2/level2.glb',
-            gltf => {
+            '../../src/levels/level2/level2.glb',
+            (gltf) => {
                 const levelModel = gltf.scene;
                 levelModel.position.copy(roomPosition);
                 levelModel.traverse(obj => {
@@ -215,6 +216,8 @@ export async function loadLevel2({
                     }
                 });
                 scene.add(levelModel);
+                // ensure world matrices are up-to-date so collidable bounds are correct immediately
+                try { levelModel.updateMatrixWorld(true); } catch (e) {}
                 levelModel.traverse(obj => {
                     if (obj.isMesh) collidables.push(obj);
                 });
@@ -244,8 +247,8 @@ export async function loadLevel2({
     const chestPromises = chestPositions.map((position, index) =>
         new Promise(resolve => {
             chestLoader.load(
-                '/src/models/treasure_chest.glb',
-                gltf => {
+                '../../src/models/treasure_chest.glb',
+                function (gltf) {
                     const chest = gltf.scene.clone();
                     chest.position.copy(position);
                     chest.scale.set(1.0, 1.0, 1.0);
@@ -272,6 +275,7 @@ export async function loadLevel2({
                     if (chestCollisionBox.geometry && chestCollisionBox.geometry.computeBoundsTree)
                         deferComputeBoundsTree(chestCollisionBox.geometry);
                     scene.add(chestCollisionBox);
+                    try { chestCollisionBox.updateMatrixWorld(true); } catch (e) {}
 
                     collidables.push(chestCollisionBox);
                     console.log(`Treasure chest ${index + 1} added at position:`, position);

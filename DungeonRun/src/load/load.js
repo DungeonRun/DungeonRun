@@ -67,7 +67,8 @@ export class Loader {
         this.loadingScreen.style.left = '0';
         this.loadingScreen.style.width = '100%';
         this.loadingScreen.style.height = '100%';
-        this.loadingScreen.style.background = 'radial-gradient(circle at 50% 50%, rgba(26,26,26,0.95), rgba(0,0,0,0.9))';
+        // soften the dark overlay so the blurred scene behind is more visible
+        this.loadingScreen.style.background = 'radial-gradient(circle at 50% 50%, rgba(26,26,26,0.6), rgba(0,0,0,0.2))';
         this.loadingScreen.style.display = 'flex';
         this.loadingScreen.style.flexDirection = 'column';
         this.loadingScreen.style.justifyContent = 'center';

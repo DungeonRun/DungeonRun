@@ -15,9 +15,9 @@ export class EnemyMovement {
     this.onModelLoaded = onModelLoaded;
     this.collidableObjects = collidableObjects;
 
-    // Core enemy state
+  // Core enemy state
     this.enemyModel = null;
-    this.health = 30;
+    this.health = 1000; // will be set per-type in setBehaviorByType
     this.mixer = null;
     this.animationsMap = new Map();
     this.currentAction = null;
@@ -29,6 +29,7 @@ export class EnemyMovement {
     this.spotlight = null;
     this.player = null;
     this.healthBar = null;
+    this.animationDurations = new Map();
 
     // Debug
     this.debug = false;
@@ -52,6 +53,8 @@ export class EnemyMovement {
         this.attackCooldown = 3;
         this.scale = 3; // Boss should look big
         this.groundOffset = 0.2;
+        this.maxHealth = 100;
+        this.attackDamage = 5;
         break;
       case "goblin":
         this.speed = 0.03;
@@ -60,6 +63,8 @@ export class EnemyMovement {
         this.attackCooldown = 1.5;
         this.scale = 2; // Slightly smaller for goblin
         this.groundOffset = 0.1;
+        this.maxHealth = 30;
+        this.attackDamage = 2;
         break;
       case "vampire":
         this.speed = 0.045;
@@ -68,6 +73,8 @@ export class EnemyMovement {
         this.attackCooldown = 1.2;
         this.scale = 2; // Taller, faster model
         this.groundOffset = 0.15;
+        this.maxHealth = 50;
+        this.attackDamage = 3;
         break;
       default:
         this.speed = 0.02;
@@ -76,9 +83,13 @@ export class EnemyMovement {
         this.attackCooldown = 2;
         this.scale = 1;
         this.groundOffset = 0.2;
+        this.maxHealth = 30;
         break;
     }
     this.lastAttackTime = 0;
+    // initialize current health to the type's maximum
+    this.health = this.maxHealth;
+    if (this.attackDamage === undefined) this.attackDamage = 2;
   }
 
   /**
@@ -114,6 +125,7 @@ export class EnemyMovement {
             const action = this.mixer.clipAction(clip);
             this.animationsMap.set(clip.name.toLowerCase(), action);
             this.animationActions.push(action);
+            try { this.animationDurations.set(clip.name.toLowerCase(), clip.duration || 0.3); } catch (e) {}
           });
         }
 
@@ -283,8 +295,19 @@ export class EnemyMovement {
     this.playAnimation("attack");
     this.lastAttackTime = now;
 
-    if (characterControls) { //fixed the issue but it required boding the code to take in characterControls for this method, moveTowardsPlayer(), and update()
-      characterControls.health = Math.max(characterControls.health - 2, 0);
+    // schedule the actual damage to occur after the attack animation has progressed
+    // try to derive a sensible delay from the animation duration if available
+    let clipDur = this.animationDurations.get('attack') || 0.35;
+    // apply damage roughly at 60% through the clip (tweakable)
+    const delayMs = Math.max(80, Math.floor(clipDur * 1000 * 0.6));
+
+    if (characterControls) {
+      setTimeout(() => {
+        try {
+          const dmg = (typeof this.attackDamage === 'number') ? this.attackDamage : 2;
+          characterControls.health = Math.max(characterControls.health - dmg, 0);
+        } catch (e) {}
+      }, delayMs);
     }
 
     if (this.debug) console.log(`${this.type} attacks the player!`);

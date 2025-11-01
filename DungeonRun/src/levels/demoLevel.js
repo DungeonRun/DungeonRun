@@ -59,6 +59,7 @@ export async function loadDemoLevel({
 
     // Define a small room area in negative coordinates and create invisible boundary walls
     const size = 6;
+
     const half = size / 2;
     const roomCenter = new THREE.Vector3(-10, 0, -10);
     const wallHeight = 6;
@@ -232,6 +233,7 @@ export async function loadDemoLevel({
         { pos: new THREE.Vector3(-25.57, 1.00, -100.84), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
         { pos: new THREE.Vector3(21.99, 1.00, 97.69), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
         { pos: new THREE.Vector3(46.72, 1.00, -37.18), type: "boss", modelPath: "/src/animations/enemies/boss.glb" }
+
     ];
 
     // Position chests inside the small negative room (near corners but within bounds)
@@ -252,7 +254,7 @@ export async function loadDemoLevel({
     let model;
     const playerLoadPromise = new Promise(resolve => {
         new GLTFLoader().load(
-            '/src/animations/avatar/avatar2.glb',
+            '../../src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
                 model.position.copy(playerSpawn);
@@ -306,7 +308,8 @@ export async function loadDemoLevel({
                     enemyLight.position.set(0, 0, 0);
                     enemyModel.add(enemyLight);
 
-                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
+                    // create health bar using the enemy's configured health so the UI fills correctly
+                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: enemy.health });
                     enemy.healthBar = bar;
                     enemyHealthBars.push(bar);
 
@@ -333,7 +336,7 @@ export async function loadDemoLevel({
     const artifactLoader = new GLTFLoader();
     const potionPromise = new Promise((resolve) => {
         artifactLoader.load(
-            '/src/models/artifacts/stylized_low_poly_potion_red.glb',
+            '../../src/models/artifacts/stylized_low_poly_potion_red.glb',
             (gltf) => {
                 console.log('✓ Potion model loaded');
                 resolve(gltf.scene);
@@ -354,7 +357,7 @@ export async function loadDemoLevel({
     const chestPromises = chestPositions.map((position, index) => {
         return new Promise(resolve => {
             chestLoader.load(
-                '/src/models/treasure_chest.glb',
+                '../../src/models/treasure_chest.glb',
                 function (gltf) {
                     const chest = gltf.scene.clone();
                     chest.position.copy(position);

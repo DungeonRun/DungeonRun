@@ -56,7 +56,21 @@ export class EnemyHealthBar {
 
     update(camera) {
         if (!this.group || !this.parent) return;
-        
+        // Rudimentary culling: skip updating / hide when far from camera
+        try {
+            const camPos = new THREE.Vector3();
+            camera.getWorldPosition(camPos);
+            const distSq = camPos.distanceToSquared(this.parent.position);
+            if (distSq > (30 * 30)) {
+                if (this.group.visible) this.group.visible = false;
+                return;
+            } else {
+                if (!this.group.visible) this.group.visible = true;
+            }
+        } catch (e) {
+            // ignore culling errors and continue updating
+        }
+
         // Update position to follow parent
         this.group.position.copy(this.parent.position);
         this.group.position.y += this.offsetY;
