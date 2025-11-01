@@ -45,10 +45,10 @@ export async function loadLevel2({
     //  Floor
     const textureLoader = new THREE.TextureLoader();
     const [sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion] = await Promise.all([
-        textureLoader.loadAsync('/sand/Sand 002_COLOR.jpg'),
-        textureLoader.loadAsync('/sand/Sand 002_NRM.jpg'),
-        textureLoader.loadAsync('/sand/Sand 002_DISP.jpg'),
-        textureLoader.loadAsync('/sand/Sand 002_OCC.jpg')
+        textureLoader.loadAsync('../../src/textures/sand/Sand 002_COLOR.jpg'),
+        textureLoader.loadAsync('../../src/textures/sand/Sand 002_NRM.jpg'),
+        textureLoader.loadAsync('../../src/textures/sand/Sand 002_DISP.jpg'),
+        textureLoader.loadAsync('../../src/textures/sand/Sand 002_OCC.jpg')
     ]);
 
     const WIDTH = 80, LENGTH = 80;
@@ -124,12 +124,12 @@ export async function loadLevel2({
     const playerSpawn = new THREE.Vector3(0, 1, 0);
 
     const enemyConfigs = [
-        { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "/src/animations/enemies/boss.glb" },
-        { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(-2, 4, -8), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(1, 6, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
-        { pos: new THREE.Vector3(2, 1, -8), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
-        { pos: new THREE.Vector3(3, 7, -8), type: "boss", modelPath: "/src/animations/enemies/boss.glb" }
+        { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
+        { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(-2, 4, -8), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(1, 6, -8), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(2, 1, -8), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(3, 7, -8), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" }
     ];
 
     const chestPositions = [
@@ -152,7 +152,7 @@ export async function loadLevel2({
     let model;
     const playerLoadPromise = new Promise(resolve => {
         new GLTFLoader().load(
-            '/src/animations/avatar/avatar2.glb',
+            '../../src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
                 model.position.copy(playerSpawn);
@@ -224,7 +224,7 @@ export async function loadLevel2({
     const levelModelPromise = new Promise(resolve => {
         const levelLoader = new GLTFLoader();
         levelLoader.load(
-            '/src/levels/level2/level2.glb',
+            '../../src/levels/level2/level2.glb',
             (gltf) => {
                 const levelModel = gltf.scene;
                 levelModel.position.copy(roomPosition);
@@ -272,7 +272,7 @@ export async function loadLevel2({
     const chestPromises = chestPositions.map((position, index) => {
         return new Promise(resolve => {
             chestLoader.load(
-                '/src/models/treasure_chest.glb',
+                '../../src/models/treasure_chest.glb',
                 function (gltf) {
                     const chest = gltf.scene.clone();
                     chest.position.copy(position);

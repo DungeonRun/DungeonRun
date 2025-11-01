@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 export function addGlowingKey(scene) {
     return new Promise((resolve, reject) => {
         const loader = new GLTFLoader();
-        loader.load('/src/models/the_golden_key.glb', (gltf) => {
+        loader.load('../../src/models/the_golden_key.glb', (gltf) => {
             const key = gltf.scene;
             key.scale.set(0.001, 0.001, 0.001);
             key.position.set(1, 0.5, 1); // Positioned on the floor, away from player/enemies for visibility
