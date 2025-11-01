@@ -51,102 +51,197 @@ export async function loadDemoLevel({
     dirLight.shadow.mapSize.width = 4096;
     dirLight.shadow.mapSize.height = 4096;
     scene.add(dirLight);
-
     //  Background Music - Use sound manager
     const level1Music = soundManager.playLevelMusic('../sounds/level1.mp3');
     
     // Store reference in scene for cleanup if needed
     scene.userData.levelMusic = level1Music;
 
-    //  Floor
-    const textureLoader = new THREE.TextureLoader();
-    const [sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion] = await Promise.all([
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_COLOR.jpg'),
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_NRM.jpg'),
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_DISP.jpg'),
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_OCC.jpg')
-    ]);
-
-    const WIDTH = 80, LENGTH = 80;
-    const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 100, 100);
-    const material = new THREE.MeshStandardMaterial({
-        map: sandBaseColor,
-        normalMap: sandNormalMap,
-        displacementMap: sandHeightMap,
-        displacementScale: 0.05,
-        aoMap: sandAmbientOcclusion,
-        roughness: 0.7,
-        metalness: 0.0,
-        color: 0x000000,
-        emissive: 0x332200,
-        emissiveIntensity: 0.1
-    });
-
-    [material.map, material.normalMap, material.displacementMap, material.aoMap].forEach(map => {
-        map.wrapS = map.wrapT = THREE.RepeatWrapping;
-        map.repeat.set(8, 8);
-        map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    });
-
-    const floor = new THREE.Mesh(geometry, material);
-    floor.receiveShadow = true;
-    floor.rotation.x = -Math.PI / 2;
-    scene.add(floor);
-    // include floor in collidables so player/enemies raycasts and collisions consider it
-    floor.name = 'ground';
-    if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
-    // mark floor as static collision geometry so BVH-based triangle checks are used
-    floor.userData.staticCollision = true;
-
-    //  Room Cube
-    const size = 30;
-    const roomGeometry = new THREE.BoxGeometry(size, size, size);
-    const roomMaterial = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        side: THREE.BackSide
-    });
-    const room = new THREE.Mesh(roomGeometry, roomMaterial);
-    room.position.y = size / 2 - 0.05;
-    room.receiveShadow = true;
-    scene.add(room);
+    // Define a small room area in negative coordinates and create invisible boundary walls
+    const size = 6;
 
     const half = size / 2;
+    const roomCenter = new THREE.Vector3(-10, 0, -10);
+    const wallHeight = 6;
     const wallThickness = 0.2;
+
     const wallPlanes = [
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false }))
+        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, size), new THREE.MeshBasicMaterial({ visible: false })),
+        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, size), new THREE.MeshBasicMaterial({ visible: false })),
+        new THREE.Mesh(new THREE.BoxGeometry(size, wallHeight, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
+        new THREE.Mesh(new THREE.BoxGeometry(size, wallHeight, wallThickness), new THREE.MeshBasicMaterial({ visible: false }))
     ];
 
-    wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z);
-    wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z);
-    wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half);
-    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);
+    wallPlanes[0].position.set(roomCenter.x + half, wallHeight / 2, roomCenter.z);
+    wallPlanes[1].position.set(roomCenter.x - half, wallHeight / 2, roomCenter.z);
+    wallPlanes[2].position.set(roomCenter.x, wallHeight / 2, roomCenter.z + half);
+    wallPlanes[3].position.set(roomCenter.x, wallHeight / 2, roomCenter.z - half);
 
     wallPlanes.forEach(wall => {
         if (wall.geometry && wall.geometry.computeBoundsTree) deferComputeBoundsTree(wall.geometry);
-        // mark walls as static collision geometry
         wall.userData.staticCollision = true;
         scene.add(wall);
     });
     const collidables = [...wallPlanes];
-    collidables.push(floor);
 
-    const playerSpawn = new THREE.Vector3(0, 1, 0);
+    // Load Level1.glb as the room/level geometry
+    try {
+        const levelLoader = new GLTFLoader();
+        const level1 = await new Promise((resolve, reject) => {
+            levelLoader.load(
+                '/src/levels/level1/Level1.glb',
+                (gltf) => resolve(gltf.scene),
+                undefined,
+                (err) => reject(err)
+            );
+        });
+        level1.name = 'Level1Room';
+        level1.position.copy(roomCenter);
+        // REMOVED SCALING - Use room at original Blender size
+        // level1.scale.set(0.5, 0.5, 0.5);
+        
+        console.log('\n=== LEVEL1 TEXTURE DEBUG ===');
+        level1.traverse((obj) => {
+            if (obj.isMesh) {
+                obj.castShadow = true;
+                obj.receiveShadow = true;
+                
+                console.log(`\nMesh: ${obj.name || 'Unnamed'}`);
+                console.log('Position:', obj.position.toArray());
+                console.log('Has UV:', !!obj.geometry.attributes.uv);
+                
+                // FIXED: Handle materials with proper texture settings
+                if (obj.material) {
+                    const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+                    
+                    materials.forEach((mat, index) => {
+                        console.log(`  Material ${index}:`, mat.name || 'Unnamed');
+                        console.log('    Color:', mat.color?.getHexString());
+                        console.log('    Roughness:', mat.roughness);
+                        console.log('    Metalness:', mat.metalness);
+                        
+                        // CRITICAL FIX: Try different wrapping modes
+                        // Base Color / Albedo Map
+                        if (mat.map) {
+                            console.log('    ✓ Base Color Map found');
+                            console.log('      Size:', mat.map.image?.width, 'x', mat.map.image?.height);
+                            mat.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            mat.map.encoding = THREE.sRGBEncoding;
+                            
+                            // FIX: Try ClampToEdge instead of RepeatWrapping
+                            // This often fixes "broken lines" issues
+                            mat.map.wrapS = THREE.ClampToEdgeWrapping;
+                            mat.map.wrapT = THREE.ClampToEdgeWrapping;
+                            
+                            // Log current repeat values from Blender
+                            console.log('      Repeat:', mat.map.repeat.x, mat.map.repeat.y);
+                            console.log('      Offset:', mat.map.offset.x, mat.map.offset.y);
+                            
+                            // CRITICAL: Reset repeat to 1,1 if it's causing issues
+                            mat.map.repeat.set(1, 1);
+                            mat.map.offset.set(0, 0);
+                            
+                            mat.map.needsUpdate = true;
+                        } else {
+                            console.log('    ✗ No Base Color Map');
+                        }
+                        
+                        // Normal Map
+                        if (mat.normalMap) {
+                            console.log('    ✓ Normal Map found');
+                            mat.normalMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            mat.normalMap.wrapS = THREE.ClampToEdgeWrapping;
+                            mat.normalMap.wrapT = THREE.ClampToEdgeWrapping;
+                            mat.normalMap.repeat.set(1, 1);
+                            mat.normalMap.offset.set(0, 0);
+                            
+                            // Ensure normal scale is set
+                            if (!mat.normalScale) {
+                                mat.normalScale = new THREE.Vector2(1, 1);
+                            }
+                            console.log('      Normal Scale:', mat.normalScale.x, mat.normalScale.y);
+                            mat.normalMap.needsUpdate = true;
+                        } else {
+                            console.log('    ✗ No Normal Map');
+                        }
+                        
+                        // Roughness Map
+                        if (mat.roughnessMap) {
+                            console.log('    ✓ Roughness Map found');
+                            mat.roughnessMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            mat.roughnessMap.wrapS = THREE.ClampToEdgeWrapping;
+                            mat.roughnessMap.wrapT = THREE.ClampToEdgeWrapping;
+                            mat.roughnessMap.repeat.set(1, 1);
+                            mat.roughnessMap.offset.set(0, 0);
+                            mat.roughnessMap.needsUpdate = true;
+                        } else {
+                            console.log('    ✗ No Roughness Map');
+                        }
+                        
+                        // Metalness Map
+                        if (mat.metalnessMap) {
+                            console.log('    ✓ Metalness Map found');
+                            mat.metalnessMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            mat.metalnessMap.wrapS = THREE.ClampToEdgeWrapping;
+                            mat.metalnessMap.wrapT = THREE.ClampToEdgeWrapping;
+                            mat.metalnessMap.repeat.set(1, 1);
+                            mat.metalnessMap.offset.set(0, 0);
+                            mat.metalnessMap.needsUpdate = true;
+                        }
+                        
+                        // AO Map (requires UV2)
+                        if (mat.aoMap) {
+                            console.log('    ✓ AO Map found');
+                            mat.aoMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            mat.aoMap.wrapS = THREE.ClampToEdgeWrapping;
+                            mat.aoMap.wrapT = THREE.ClampToEdgeWrapping;
+                            mat.aoMap.repeat.set(1, 1);
+                            mat.aoMap.offset.set(0, 0);
+                            
+                            // Check for UV2 channel
+                            if (obj.geometry && !obj.geometry.attributes.uv2) {
+                                console.warn('    ⚠ AO map needs UV2, copying from UV');
+                                obj.geometry.setAttribute('uv2', obj.geometry.attributes.uv);
+                            }
+                            mat.aoMap.needsUpdate = true;
+                        }
+                        
+                        // Ensure proper rendering
+                        mat.side = THREE.FrontSide;
+                        mat.needsUpdate = true;
+                    });
+                }
+                
+                if (obj.geometry && obj.geometry.computeBoundsTree) deferComputeBoundsTree(obj.geometry);
+                obj.userData.staticCollision = true;
+                collidables.push(obj);
+            }
+        });
+        
+        console.log('=== END TEXTURE DEBUG ===\n');
+        scene.add(level1);
+    } catch (e) {
+        console.warn('Level1.glb failed to load:', e);
+    }
 
+    // Spawn the player inside the small negative room
+    const playerSpawn = new THREE.Vector3(-89.25, 1.00, -22.37);
+
+    // Position enemies inside the small negative room
     const enemyConfigs = [
-        { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
-        { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(-3, 1, -8), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(1, 1, -8), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" }
+        { pos: new THREE.Vector3(-36.56, 1.00, 39.62), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(-25.57, 1.00, -100.84), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(21.99, 1.00, 97.69), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(46.72, 1.00, -37.18), type: "boss", modelPath: "/src/animations/enemies/boss.glb" }
+
     ];
 
+    // Position chests inside the small negative room (near corners but within bounds)
     const chestPositions = [
-        new THREE.Vector3(-12, 0, -12),
-        new THREE.Vector3(12, 0, -12),
-        new THREE.Vector3(-12, 0, 12),
-        new THREE.Vector3(12, 0, 12)
+        new THREE.Vector3(-9.80, 1.00, 20.41),
+        new THREE.Vector3(65.22, 1.00, -118.77),
+        new THREE.Vector3(-7.69, 1.00, 12.97),
+        new THREE.Vector3(-13.18, 1.00, 71.78)
     ];
 
     const totalSteps = 1 + enemyConfigs.length + 1 + chestPositions.length;
@@ -229,7 +324,8 @@ export async function loadDemoLevel({
     });
 
     //  Key
-    const keyLoadPromise = addGlowingKey(scene).then(({ animator, key }) => {
+    const keyPosition = new THREE.Vector3(73.01, 1.00, -62.46);
+    const keyLoadPromise = addGlowingKey(scene, keyPosition).then(({ animator, key }) => {
         key.visible = false;
         if (onKeyLoaded) onKeyLoaded({ animator, key });
         updateLoader();
@@ -322,12 +418,8 @@ export async function loadDemoLevel({
                     chestCollisionBox.position.copy(position);
                     chestCollisionBox.position.y = 1;
                     chestCollisionBox.name = `chest_collision_${index}`;
-                    // This mesh is used only as a proximity/trigger for opening the chest.
-                    // Do NOT mark it as staticCollision or add it to `collidables` so it doesn't
-                    // participate in the movement collision checks and won't block the player.
                     chestCollisionBox.userData.isChestTrigger = true;
                     scene.add(chestCollisionBox);
-                    // intentionally not added to `collidables`
                     
                     console.log(`Treasure chest ${index + 1} added at position:`, position);
                     updateLoader();
