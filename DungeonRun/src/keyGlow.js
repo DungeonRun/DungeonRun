@@ -7,7 +7,7 @@ import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 export function addGlowingKey(scene, position = null) {
     return new Promise((resolve, reject) => {
         const loader = new GLTFLoader();
-        loader.load('/src/models/the_golden_key.glb', (gltf) => {
+        loader.load('../../src/models/the_golden_key.glb', (gltf) => {
             const key = gltf.scene;
             key.scale.set(0.001, 0.001, 0.001);
 
