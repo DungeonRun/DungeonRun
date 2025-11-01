@@ -120,11 +120,10 @@ export class ProjectileManager {
                 const enemy = this.enemies[j];
                 if (!enemy || !enemy.enemyModel) continue;
                 // compute enemy's visual hitbox center (not rely on model origin)
+                // Use cached world position and precomputed radius to avoid expensive setFromObject
                 try {
-                    tmpBox.setFromObject(enemy.enemyModel);
-                    tmpBox.getCenter(tmpCenter);
+                    enemy.enemyModel.getWorldPosition(tmpCenter);
                 } catch (e) {
-                    // fallback to model position
                     tmpCenter.copy(enemy.enemyModel.position);
                 }
                 const enemyRadius = (enemy.enemyModel.userData && enemy.enemyModel.userData.radius) ? enemy.enemyModel.userData.radius : 1.0;

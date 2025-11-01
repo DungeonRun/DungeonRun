@@ -15,11 +15,63 @@ clickSound.volume = savedSoundVolume ? parseFloat(savedSoundVolume) : 1.0;
 // Try to play music when page loads
 function playMainMenuMusic() {
     mainMenuMusic.play().catch(error => {
-        console.log('Autoplay blocked. Music will play on first user interaction.');
-        // If autoplay is blocked, play on first click
-        document.addEventListener('click', () => {
-            mainMenuMusic.play();
-        }, { once: true });
+        console.log('Autoplay blocked. Music could not start immediately:', error);
+    });
+}
+
+// Show a full-screen start overlay that waits for a user gesture (click/keypress)
+function showStartScreen(message = 'Click anywhere to start') {
+    return new Promise((resolve) => {
+        try {
+            const overlay = document.createElement('div');
+            overlay.style.position = 'fixed';
+            overlay.style.top = '0';
+            overlay.style.left = '0';
+            overlay.style.width = '100%';
+            overlay.style.height = '100%';
+            overlay.style.background = 'rgba(0,0,0,1)';
+            overlay.style.zIndex = '9999';
+            overlay.style.display = 'flex';
+            overlay.style.alignItems = 'center';
+            overlay.style.justifyContent = 'center';
+            overlay.style.cursor = 'pointer';
+
+            const msg = document.createElement('div');
+            msg.textContent = message;
+            msg.style.color = '#ffffff';
+            msg.style.fontFamily = `'Segoe UI', Tahoma, Geneva, Verdana, sans-serif`;
+            msg.style.fontSize = '28px';
+            msg.style.fontWeight = '700';
+            msg.style.textAlign = 'center';
+            msg.style.userSelect = 'none';
+            msg.style.textTransform = 'uppercase';
+            msg.style.letterSpacing = '2px';
+
+            overlay.appendChild(msg);
+            document.body.appendChild(overlay);
+
+            const cleanup = () => {
+                try { document.body.removeChild(overlay); } catch (e) {}
+                window.removeEventListener('keydown', onKey);
+                overlay.removeEventListener('pointerdown', onClick);
+            };
+
+            const onClick = (e) => {
+                cleanup();
+                resolve();
+            };
+            const onKey = (e) => {
+                if (e.code === 'Enter' || e.code === 'Space' || !e.code) {
+                    cleanup();
+                    resolve();
+                }
+            };
+
+            overlay.addEventListener('pointerdown', onClick, { once: true });
+            window.addEventListener('keydown', onKey, { once: true });
+        } catch (e) {
+            resolve();
+        }
     });
 }
 
@@ -111,5 +163,8 @@ function backGroundAnimate() {
 // Initialize everything when page loads
 window.addEventListener('DOMContentLoaded', () => {
     backGroundAnimate();
-    playMainMenuMusic();
+    // show click-to-start so music can play after a user gesture
+    showStartScreen('Click anywhere to start').then(() => {
+        playMainMenuMusic();
+    }).catch(() => { playMainMenuMusic(); });
 });
