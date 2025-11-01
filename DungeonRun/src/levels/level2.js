@@ -6,7 +6,7 @@ import { ThirdPersonCamera } from '../view/thirdPersonCamera.js';
 import { CharacterControls } from '../movements/characterControls.js';
 import { addGlowingKey } from '../keyGlow.js';
 import { EnemyHealthBar } from '../view/enemyHealthBar.js';
-import { soundManager } from '../sounds/soundManger.js'; // FIXED PATH
+import { soundManager } from '../sounds/soundManger.js';
 
 export async function loadLevel2({
     scene,
@@ -28,7 +28,7 @@ export async function loadLevel2({
         else setTimeout(fn, 0);
     }
 
-    //  Ambient and Directional Lighting
+    // Ambient and Directional Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.3));
     const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
     dirLight.position.set(-60, 100, -10);
@@ -43,13 +43,13 @@ export async function loadLevel2({
     dirLight.shadow.mapSize.height = 4096;
     scene.add(dirLight);
 
-    //  Background Music - Use sound manager
+    // Background Music - Use sound manager
     const level2Music = soundManager.playLevelMusic('../sounds/level2.mp3');
     
     // Store reference in scene for cleanup if needed
     scene.userData.levelMusic = level2Music;
 
-    //  Floor
+    // Floor
     const textureLoader = new THREE.TextureLoader();
     const [sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion] = await Promise.all([
         textureLoader.loadAsync('../../src/textures/sand/Sand 002_COLOR.jpg'),
@@ -79,20 +79,10 @@ export async function loadLevel2({
         map.anisotropy = renderer.capabilities.getMaxAnisotropy();
     });
 
-    // UNCOMMENT THE FLOOR CREATION OR REMOVE THE FLOOR REFERENCES
-    //const floor = new THREE.Mesh(geometry, material);
-    //floor.receiveShadow = true;
-    //floor.rotation.x = -Math.PI / 2;
-    //scene.add(floor);
-
-    //floor.name = 'ground';
-    //floor.userData.staticCollision = true;
-    //if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
-
     const collidables = [];
-    //collidables.push(floor); // UNCOMMENT THIS TOO
 
-    const playerSpawn = new THREE.Vector3(3, 3, 0); // FIXED: Changed from (0, 1, 0) to (3, 3, 0)
+    // FIXED: Use a much safer approach for player spawn
+    const playerSpawn = new THREE.Vector3(16.44, 0.1, -21.36); // Start at ground level
 
     const enemyConfigs = [
         { pos: new THREE.Vector3(21.94, 0.05, -20.59), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
@@ -129,14 +119,101 @@ export async function loadLevel2({
         if (loader) loader.updateProgress((++completedSteps / totalSteps) * 100);
     }
 
-    //  Player
+    // LOAD LEVEL GEOMETRY FIRST
+    const levelModelPromise = new Promise(resolve => {
+        const levelLoader = new GLTFLoader();
+        levelLoader.load(
+            '../../src/levels/level2/level2.glb',
+            (gltf) => {
+                const levelModel = gltf.scene;
+                levelModel.position.copy(roomPosition);
+                
+                levelModel.traverse(obj => {
+                    if (obj.isMesh) {
+                        obj.castShadow = true;
+                        obj.receiveShadow = true;
+                        obj.userData.staticCollision = true;
+                        
+                        // Mark ground meshes for proper collision handling
+                        if (obj.name.toLowerCase().includes('ground') || obj.name.toLowerCase().includes('floor')) {
+                            obj.userData.isGround = true;
+                        }
+                        
+                        if (obj.geometry && obj.geometry.computeBoundsTree) {
+                            deferComputeBoundsTree(obj.geometry);
+                        }
+                    }
+                });
+                scene.add(levelModel);
+                
+                // CRITICAL: Update world matrices immediately for proper collision detection
+                try { 
+                    levelModel.updateMatrixWorld(true); 
+                    scene.updateMatrixWorld(true);
+                } catch (e) {
+                    console.warn('Matrix update warning:', e);
+                }
+                
+                // Add collidables after matrix update
+                levelModel.traverse(obj => {
+                    if (obj.isMesh && obj.userData.staticCollision) {
+                        collidables.push(obj);
+                        console.log('Added collidable:', obj.name || 'unnamed mesh');
+                    }
+                });
+                
+                updateLoader();
+                resolve(levelModel);
+            },
+            undefined,
+            err => {
+                console.warn('Could not load level model:', err);
+                updateLoader();
+                resolve();
+            }
+        );
+    });
+
+    // WAIT FOR LEVEL GEOMETRY TO LOAD BEFORE PLAYER
+    const levelModel = await levelModelPromise;
+
+    // NEW: Create a simple ground plane at the correct height to ensure player stays on ground
+    const groundPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(200, 200),
+        new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00, 
+            transparent: true, 
+            opacity: 0.3,
+            visible: false // Make invisible but still functional for collisions
+        })
+    );
+    groundPlane.rotation.x = -Math.PI / 2;
+    groundPlane.position.y = 0.05; // Match enemy ground height
+    groundPlane.name = 'ground_plane';
+    groundPlane.userData.staticCollision = true;
+    groundPlane.userData.isGround = true;
+    scene.add(groundPlane);
+    collidables.push(groundPlane);
+
+    // Debug: Add spawn marker to visualize spawn position
+    const spawnMarker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5),
+        new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.7 })
+    );
+    spawnMarker.position.copy(playerSpawn);
+    scene.add(spawnMarker);
+
+    // Player
     let model;
     const playerLoadPromise = new Promise(resolve => {
         new GLTFLoader().load(
             '../../src/animations/avatar/avatar2.glb',
             function (gltf) {
                 model = gltf.scene;
+                
+                // Use the ground-level spawn position
                 model.position.copy(playerSpawn);
+                
                 model.traverse(function (object) {
                     if (object.isMesh) {
                         object.castShadow = true;
@@ -163,15 +240,40 @@ export async function loadLevel2({
                     scene: scene
                 });
 
-                const characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle', collidables);
-                if (onPlayerLoaded) onPlayerLoaded({ model, mixer, animationsMap, characterControls, thirdPersonCamera, collidables });
+                // Small delay to ensure collision system is fully initialized
+                setTimeout(() => {
+                    const characterControls = new CharacterControls(model, mixer, animationsMap, thirdPersonCamera, 'Idle', collidables);
+                    
+                    // Debug: Verify spawn position and collision setup
+                    console.log('Player spawned at:', playerSpawn);
+                    console.log('Total collidables:', collidables.length);
+                    console.log('Level geometry loaded:', levelModel ? 'Yes' : 'No');
+                    
+                    // NEW: Force immediate ground snapping using CharacterControls method
+                    characterControls.update(0.016, {}); // Small delta to initialize
+                    
+                    if (onPlayerLoaded) onPlayerLoaded({ 
+                        model, 
+                        mixer, 
+                        animationsMap, 
+                        characterControls, 
+                        thirdPersonCamera, 
+                        collidables 
+                    });
+                    updateLoader();
+                    resolve();
+                }, 100);
+            },
+            undefined,
+            (error) => {
+                console.error('Error loading player model:', error);
                 updateLoader();
                 resolve();
             }
         );
     });
 
-    //  Enemies
+    // Enemies
     const enemies = [];
     const enemyHealthBars = [];
     const enemiesLoadPromise = playerLoadPromise.then(async () => {
@@ -197,43 +299,7 @@ export async function loadLevel2({
         if (onEnemiesLoaded) onEnemiesLoaded({ enemies, enemyHealthBars, collidables });
     });
 
-    //  Level Geometry
-    const levelModelPromise = new Promise(resolve => {
-        const levelLoader = new GLTFLoader();
-        levelLoader.load(
-            '../../src/levels/level2/level2.glb',
-            (gltf) => {
-                const levelModel = gltf.scene;
-                levelModel.position.copy(roomPosition);
-                levelModel.traverse(obj => {
-                    if (obj.isMesh) {
-                        obj.castShadow = true;
-                        obj.receiveShadow = true;
-                        obj.userData.staticCollision = true;
-                        if (obj.geometry && obj.geometry.computeBoundsTree) {
-                            deferComputeBoundsTree(obj.geometry);
-                        }
-                    }
-                });
-                scene.add(levelModel);
-                // ensure world matrices are up-to-date so collidable bounds are correct immediately
-                try { levelModel.updateMatrixWorld(true); } catch (e) {}
-                levelModel.traverse(obj => {
-                    if (obj.isMesh) collidables.push(obj);
-                });
-                updateLoader();
-                resolve(levelModel);
-            },
-            undefined,
-            err => {
-                console.warn('Could not load level model:', err);
-                updateLoader();
-                resolve();
-            }
-        );
-    });
-
-    //  Key
+    // Key
     const keyPosition = new THREE.Vector3(100.37, 0.15, -169.24);
     const keyLoadPromise = addGlowingKey(scene, keyPosition).then(({ animator, key }) => {
         key.visible = true;
@@ -242,7 +308,7 @@ export async function loadLevel2({
         return { animator, key };
     });
 
-    //  Treasure Chests
+    // Treasure Chests
     const chestLoader = new GLTFLoader();
     const chestPromises = chestPositions.map((position, index) =>
         new Promise(resolve => {
@@ -291,7 +357,12 @@ export async function loadLevel2({
         })
     );
 
-    await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, levelModelPromise, ...chestPromises]);
+    await Promise.all([playerLoadPromise, enemiesLoadPromise, keyLoadPromise, ...chestPromises]);
+    
+    // Final debug info
+    console.log('Level 2 loading complete');
+    console.log('Player spawn position:', playerSpawn);
+    console.log('Total collidable objects:', collidables.length);
 }
 
 // Cleanup function to stop level music when leaving level
