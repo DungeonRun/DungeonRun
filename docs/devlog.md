@@ -20,7 +20,8 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 - Enemy avatars can follow you and attack you
 - Added better animations based on the Main screen login ui across Credits,Instructions and settings and across game center
 - Added gameover sound within the game and plays when the game over page loads
-- 
+- Added sounds ,music for all the levels and ensured that they do not overlap when transitioning to other levels
+- Handled game instructions as well as populated the game menu instructions as you log in the game
 
 ### 2. Niel Grobler
 - **Features Developed**: 
