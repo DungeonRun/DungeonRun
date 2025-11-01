@@ -213,7 +213,8 @@ export async function loadDemoLevel({
                     enemyLight.position.set(0, 0, 0);
                     enemyModel.add(enemyLight);
 
-                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
+                    // create health bar using the enemy's configured health so the UI fills correctly
+                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: enemy.health });
                     enemy.healthBar = bar;
                     enemyHealthBars.push(bar);
 

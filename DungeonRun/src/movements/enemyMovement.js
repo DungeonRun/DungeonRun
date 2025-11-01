@@ -15,9 +15,9 @@ export class EnemyMovement {
     this.onModelLoaded = onModelLoaded;
     this.collidableObjects = collidableObjects;
 
-    // Core enemy state
+  // Core enemy state
     this.enemyModel = null;
-    this.health = 30;
+    this.health = 1000; // will be set per-type in setBehaviorByType
     this.mixer = null;
     this.animationsMap = new Map();
     this.currentAction = null;
@@ -52,6 +52,7 @@ export class EnemyMovement {
         this.attackCooldown = 3;
         this.scale = 1; // Boss should look big
         this.groundOffset = 0.2;
+        this.maxHealth = 100;
         break;
       case "goblin":
         this.speed = 0.03;
@@ -60,6 +61,7 @@ export class EnemyMovement {
         this.attackCooldown = 1.5;
         this.scale = 0.8; // Slightly smaller for goblin
         this.groundOffset = 0.1;
+        this.maxHealth = 30;
         break;
       case "vampire":
         this.speed = 0.045;
@@ -68,6 +70,7 @@ export class EnemyMovement {
         this.attackCooldown = 1.2;
         this.scale = 0.9; // Taller, faster model
         this.groundOffset = 0.15;
+        this.maxHealth = 50;
         break;
       default:
         this.speed = 0.02;
@@ -76,9 +79,12 @@ export class EnemyMovement {
         this.attackCooldown = 2;
         this.scale = 1;
         this.groundOffset = 0.2;
+        this.maxHealth = 30;
         break;
     }
     this.lastAttackTime = 0;
+    // initialize current health to the type's maximum
+    this.health = this.maxHealth;
   }
 
   /**

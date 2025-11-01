@@ -11,6 +11,7 @@ import { loadLevel3, cleanupLevel3 } from '../levels/level3.js'; // ADD CLEANUP 
 import { PauseMenuUI } from '../view/pauseMenuUI.js';
 import { GameTimerUI } from '../view/timerUI.js';
 import { ChestController } from '../ChestController.js';
+import { EnemyCountUI } from '../view/enemyCountUI.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -38,8 +39,8 @@ const SLOT_SPELL = 2;
 
 // cooldown durations (seconds)
 const PUNCH_COOLDOWN = 0.6;
-const SWORD_COOLDOWN = 1.5;
-const SPELL_COOLDOWN = 3.0;
+const SWORD_COOLDOWN = 3.0;
+const SPELL_COOLDOWN = 7.0;
 
 // Attack hitbox configuration (adjust to fit animations)
 const ATTACK_CONFIG = {
@@ -53,14 +54,15 @@ const ATTACK_CONFIG = {
     sword: {
         delay: 0.4,
         duration: 0.22,
-        distance: -0.8,
-        size: new THREE.Vector3(3.6, 3.6, 1.4),
+        distance: -1.3,
+        size: new THREE.Vector3(3.4, 3.4, 3.0),
         damage: 25
     }
 };
 
 // Health
 let playerHealthBar;
+let enemyCountUI;
 
 // Pause menu and timer
 let pauseMenuUI;
@@ -162,6 +164,12 @@ function clearScene() {
     if (gameTimer) gameTimer.remove();
     if (inventory) inventory.remove();
     if (keyDisplay) keyDisplay.remove();
+                                                             
+        // remove enemies-left UI if present (avoid it showing during loading)
+        if (enemyCountUI) {
+            try { enemyCountUI.remove(); } catch (e) {}
+            enemyCountUI = null;
+        }
 }
 
 // === Cleanup Current Level ===
@@ -230,6 +238,8 @@ async function loadLevel(levelLoader, levelName = '') {
     pauseMenuUI = new PauseMenuUI();
     inventory = new Inventory();
     keyDisplay = new KeyDisplay();
+    // enemies left UI
+    enemyCountUI = new EnemyCountUI({ count: enemies.length });
 }
 
 function playMusicForLevel(level) {
@@ -658,6 +668,8 @@ function animate() {
         if (playerHealthBar && characterControls) {
             playerHealthBar.setHealth(characterControls.health);
         }
+        // update enemies-left UI
+        if (enemyCountUI) enemyCountUI.setCount(enemies.length);
 
     
 

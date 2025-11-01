@@ -205,7 +205,8 @@ export async function loadLevel3({
                         enemyLight.position.set(0, 0, 0);
                         enemyModel.add(enemyLight);
 
-                        const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
+                        // ensure the health bar matches the enemy's configured health
+                        const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: enemy.health });
                         enemy.healthBar = bar;
                         enemyHealthBars.push(bar);
 

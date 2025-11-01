@@ -95,17 +95,17 @@ export async function loadLevel2({
     const playerSpawn = new THREE.Vector3(3, 3, 0); // FIXED: Changed from (0, 1, 0) to (3, 3, 0)
 
     const enemyConfigs = [
-        { pos: new THREE.Vector3(21.94, 0.05, -20.59), type: "goblin", modelPath: "../..//src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(16.44, 0.05, -21.36), type: "goblin", modelPath: "../..//src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(34.17, 0.05, -20.8), type: "goblin", modelPath: "../..//src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(81.69, 0.15, -29.49), type: "vampire", modelPath: "../..//src/animations/enemies/enemy2.glb" },
-        { pos: new THREE.Vector3(71.34, 0.15, -35.88), type: "vampire", modelPath: "../..//src/animations/enemies/enemy2.glb" },
-        { pos: new THREE.Vector3(101.23, 0.05, -80.53), type: "vampire", modelPath: "../..//src/animations/enemies/enemy2.glb" },
-        { pos: new THREE.Vector3(97.82, 0.05, -105.39), type: "goblin", modelPath: "../..//src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(89.03, 0.15, -151.41), type: "boss", modelPath: "../..//src/animations/enemies/boss.glb" },
-        { pos: new THREE.Vector3(101.16, 0.15, -173.29), type: "boss", modelPath: "../..//src/animations/enemies/boss.glb" },
-        { pos: new THREE.Vector3(121.08, 0.15, -159.28), type: "boss", modelPath: "../..//src/animations/enemies/boss.glb" },
-        { pos: new THREE.Vector3(101.32, 0.15, -152.95), type: "boss", modelPath: "../..//src/animations/enemies/boss.glb" }
+        { pos: new THREE.Vector3(21.94, 0.05, -20.59), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(16.44, 0.05, -21.36), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(34.17, 0.05, -20.8), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(81.69, 0.15, -29.49), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(71.34, 0.15, -35.88), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(101.23, 0.05, -80.53), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(97.82, 0.05, -105.39), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(89.03, 0.15, -151.41), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
+        { pos: new THREE.Vector3(101.16, 0.15, -173.29), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
+        { pos: new THREE.Vector3(121.08, 0.15, -159.28), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
+        { pos: new THREE.Vector3(101.32, 0.15, -152.95), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" }
     ];
 
     const chestPositions = [
@@ -182,7 +182,8 @@ export async function loadLevel2({
                     enemyLight.position.set(0, 0, 0);
                     enemyModel.add(enemyLight);
 
-                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: 100 });
+                    // ensure health bar uses enemy's configured health so it's full at spawn
+                    const bar = new EnemyHealthBar(enemyModel, scene, { maxHealth: enemy.health });
                     enemy.healthBar = bar;
                     enemyHealthBars.push(bar);
                     updateLoader();
