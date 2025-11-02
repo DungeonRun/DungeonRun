@@ -146,7 +146,7 @@ export async function loadLevel2({
                             obj.userData.isGround = true;
                         }
                         
-                        if (obj.geometry && obj.geometry.computeBoundsTree) {
+                        if (true || obj.geometry && obj.geometry.computeBoundsTree) {
                             deferComputeBoundsTree(obj.geometry);
                         }
                     }
@@ -203,12 +203,12 @@ export async function loadLevel2({
     collidables.push(groundPlane);
 
     // Debug: Add spawn marker to visualize spawn position
-    const spawnMarker = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5),
-        new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.7 })
-    );
-    spawnMarker.position.copy(playerSpawn);
-    scene.add(spawnMarker);
+    //const spawnMarker = new THREE.Mesh(
+    //    new THREE.SphereGeometry(0.5),
+    //    new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.7 })
+    //);
+    //spawnMarker.position.copy(playerSpawn);
+    //scene.add(spawnMarker);
 
     // Player
     let model;

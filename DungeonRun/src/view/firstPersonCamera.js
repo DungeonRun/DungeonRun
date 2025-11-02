@@ -107,7 +107,7 @@ class FirstPersonCamera {
         // Polar (vertical) rotation
         
         const euler = new THREE.Euler(
-            this._polarAngle - Math.PI * 0.5, // Adjust for coordinate system
+            -(this._polarAngle - Math.PI * 0.5), // Adjust for coordinate system
             this._azimuthalAngle,
             0,
             'YXZ' // Important: YXZ order prevents gimbal lock

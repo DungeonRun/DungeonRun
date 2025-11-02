@@ -136,7 +136,7 @@ class ThirdPersonCamera {
         // Rotate the offset by the azimuthal angle (horizontal rotation)
         const rotatedOffset = new THREE.Vector3();
         rotatedOffset.x = offset.x * Math.cos(azimuthalAngle) - offset.z * Math.sin(azimuthalAngle);
-        rotatedOffset.z = offset.x * Math.sin(azimuthalAngle) + offset.z * Math.cos(azimuthalAngle);
+        rotatedOffset.z = offset.x * Math.sin(azimuthalAngle) + offset.z * Math.cos(-azimuthalAngle);
         rotatedOffset.y = offset.y;
         
         // Adjust height based on polar angle for looking up/down
