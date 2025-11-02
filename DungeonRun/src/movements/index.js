@@ -740,7 +740,7 @@ function animate() {
                         if (!enemy || !enemy.enemyModel) return;
                         enemy.enemyModel.getWorldPosition(tmpEnemyPos);
                         const distSq = tmpEnemyPos.distanceToSquared(cameraWorldPos);
-                        const tooFar = distSq > (40 * 40);
+                        const tooFar = distSq > (60 * 60);
                         if (tooFar) {
                             if (enemy.enemyModel.visible) enemy.enemyModel.visible = false;
                             if (enemy.healthBar && enemy.healthBar.group) enemy.healthBar.group.visible = false;

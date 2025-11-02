@@ -61,7 +61,7 @@ export class EnemyHealthBar {
             const camPos = new THREE.Vector3();
             camera.getWorldPosition(camPos);
             const distSq = camPos.distanceToSquared(this.parent.position);
-            if (distSq > (30 * 30)) {
+            if (distSq > (60 * 60)) {
                 if (this.group.visible) this.group.visible = false;
                 return;
             } else {
