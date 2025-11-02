@@ -10,6 +10,7 @@ class CharacterControls {
         this.mixer = mixer;
         this.animationsMap = animationsMap || new Map();
         this.thirdPersonCamera = thirdPersonCamera;
+        this.activeCamera = thirdPersonCamera; // Support both camera types
         this.currentAction = currentAction;
     // walking is default; run only when Shift is held
     this.toggleRun = false;
@@ -349,16 +350,15 @@ class CharacterControls {
         }
 
         if (this.currentAction === 'Run' || this.currentAction === 'Walk') {
-            let moveDirection = new THREE.Vector3(0, 0, 0);
-            const cameraWorldPos = this.thirdPersonCamera._camera.getWorldPosition(new THREE.Vector3());
-            const playerPos = this.model.position.clone();
-            const cameraForward = new THREE.Vector3();
-            cameraForward.subVectors(playerPos, cameraWorldPos);
-            cameraForward.y = 0;
-            cameraForward.normalize();
-            const cameraRight = new THREE.Vector3();
-            cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0));
-            cameraRight.normalize();
+             let moveDirection = new THREE.Vector3(0, 0, 0);
+            
+            // Use activeCamera (supports both first and third person)
+            const activeCamera = this.activeCamera || this.thirdPersonCamera;
+            if (!activeCamera) return;
+            
+            // Get camera forward and right vectors using the camera's methods
+            const cameraForward = activeCamera.GetForwardVector();
+            const cameraRight = activeCamera.GetRightVector();
 
             if (keysPressed[UP]) {
                 moveDirection.add(cameraForward);
@@ -478,6 +478,13 @@ class CharacterControls {
 
     console.log("CharacterControls: Animation reset to Idle"); //so that animations on previous level stop
 }
+   // Method to update the active camera reference
+    setActiveCamera(camera) {
+        this.activeCamera = camera;
+        if (!this.thirdPersonCamera) {
+            this.thirdPersonCamera = camera; // Maintain compatibility
+        }
+    }
 
 }
 
