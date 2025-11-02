@@ -131,22 +131,163 @@ export async function loadDemoLevel({
         scene.add(wall);
     });
     const collidables = [...wallPlanes];
-    collidables.push(floor);
 
-    const playerSpawn = new THREE.Vector3(0, 1, 0);
+    // Load Level1.glb as the room/level geometry
+    try {
+        const levelLoader = new GLTFLoader();
+        const level1 = await new Promise((resolve, reject) => {
+            levelLoader.load(
+                '/src/levels/level1/Level1.glb',
+                (gltf) => resolve(gltf.scene),
+                undefined,
+                (err) => reject(err)
+            );
+        });
+        level1.name = 'Level1Room';
+        level1.position.copy(roomCenter);
+        // REMOVED SCALING - Use room at original Blender size
+        level1.scale.set(0.2, 0.2, 0.2);
+        
+        console.log('\n=== LEVEL1 TEXTURE DEBUG ===');
+        level1.traverse((obj) => {
+            if (obj.isMesh) {
+                obj.castShadow = true;
+                obj.receiveShadow = true;
+                
+                console.log(`\nMesh: ${obj.name || 'Unnamed'}`);
+                console.log('Position:', obj.position.toArray());
+                console.log('Has UV:', !!obj.geometry.attributes.uv);
+                
+                // FIXED: Handle materials with proper texture settings
+                if (obj.material) {
+                    const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
+                    
+                    materials.forEach((mat, index) => {
+                        console.log(`  Material ${index}:`, mat.name || 'Unnamed');
+                        console.log('    Color:', mat.color?.getHexString());
+                        console.log('    Roughness:', mat.roughness);
+                        console.log('    Metalness:', mat.metalness);
+                        
+                        // CRITICAL FIX: Try different wrapping modes
+                        // Base Color / Albedo Map
+                        if (mat.map) {
+                            console.log('    ✓ Base Color Map found');
+                            console.log('      Size:', mat.map.image?.width, 'x', mat.map.image?.height);
+                            mat.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            mat.map.encoding = THREE.sRGBEncoding;
+                            
+                            // FIX: Try ClampToEdge instead of RepeatWrapping
+                            // This often fixes "broken lines" issues
+                            mat.map.wrapS = THREE.ClampToEdgeWrapping;
+                            mat.map.wrapT = THREE.ClampToEdgeWrapping;
+                            
+                            // Log current repeat values from Blender
+                            console.log('      Repeat:', mat.map.repeat.x, mat.map.repeat.y);
+                            console.log('      Offset:', mat.map.offset.x, mat.map.offset.y);
+                            
+                            // CRITICAL: Reset repeat to 1,1 if it's causing issues
+                            mat.map.repeat.set(1, 1);
+                            mat.map.offset.set(0, 0);
+                            
+                            mat.map.needsUpdate = true;
+                        } else {
+                            console.log('    ✗ No Base Color Map');
+                        }
+                        
+                        // Normal Map
+                        if (mat.normalMap) {
+                            console.log('    ✓ Normal Map found');
+                            mat.normalMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            mat.normalMap.wrapS = THREE.ClampToEdgeWrapping;
+                            mat.normalMap.wrapT = THREE.ClampToEdgeWrapping;
+                            mat.normalMap.repeat.set(1, 1);
+                            mat.normalMap.offset.set(0, 0);
+                            
+                            // Ensure normal scale is set
+                            if (!mat.normalScale) {
+                                mat.normalScale = new THREE.Vector2(1, 1);
+                            }
+                            console.log('      Normal Scale:', mat.normalScale.x, mat.normalScale.y);
+                            mat.normalMap.needsUpdate = true;
+                        } else {
+                            console.log('    ✗ No Normal Map');
+                        }
+                        
+                        // Roughness Map
+                        if (mat.roughnessMap) {
+                            console.log('    ✓ Roughness Map found');
+                            mat.roughnessMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            mat.roughnessMap.wrapS = THREE.ClampToEdgeWrapping;
+                            mat.roughnessMap.wrapT = THREE.ClampToEdgeWrapping;
+                            mat.roughnessMap.repeat.set(1, 1);
+                            mat.roughnessMap.offset.set(0, 0);
+                            mat.roughnessMap.needsUpdate = true;
+                        } else {
+                            console.log('    ✗ No Roughness Map');
+                        }
+                        
+                        // Metalness Map
+                        if (mat.metalnessMap) {
+                            console.log('    ✓ Metalness Map found');
+                            mat.metalnessMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            mat.metalnessMap.wrapS = THREE.ClampToEdgeWrapping;
+                            mat.metalnessMap.wrapT = THREE.ClampToEdgeWrapping;
+                            mat.metalnessMap.repeat.set(1, 1);
+                            mat.metalnessMap.offset.set(0, 0);
+                            mat.metalnessMap.needsUpdate = true;
+                        }
+                        
+                        // AO Map (requires UV2)
+                        if (mat.aoMap) {
+                            console.log('    ✓ AO Map found');
+                            mat.aoMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
+                            mat.aoMap.wrapS = THREE.ClampToEdgeWrapping;
+                            mat.aoMap.wrapT = THREE.ClampToEdgeWrapping;
+                            mat.aoMap.repeat.set(1, 1);
+                            mat.aoMap.offset.set(0, 0);
+                            
+                            // Check for UV2 channel
+                            if (obj.geometry && !obj.geometry.attributes.uv2) {
+                                console.warn('    ⚠ AO map needs UV2, copying from UV');
+                                obj.geometry.setAttribute('uv2', obj.geometry.attributes.uv);
+                            }
+                            mat.aoMap.needsUpdate = true;
+                        }
+                        
+                        // Ensure proper rendering
+                        mat.side = THREE.FrontSide;
+                        mat.needsUpdate = true;
+                    });
+                }
+                
+                if (obj.geometry && obj.geometry.computeBoundsTree) deferComputeBoundsTree(obj.geometry);
+                obj.userData.staticCollision = true;
+                collidables.push(obj);
+            }
+        });
+        
+        console.log('=== END TEXTURE DEBUG ===\n');
+        scene.add(level1);
+    } catch (e) {
+        console.warn('Level1.glb failed to load:', e);
+    }
 
+    // Spawn the player inside the small negative room
+    const playerSpawn = new THREE.Vector3(-89.25*0.2, 1.00*0.2, -22.37*0.2);
+
+    // Position enemies inside the small negative room
     const enemyConfigs = [
-        { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
-        { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(-3, 1, -8), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(1, 1, -8), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" }
+        { pos: new THREE.Vector3(-7.312, 0.2, 7.924), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(-5.114, 0.2, -20.168), type: "goblin", modelPath: "/src/animations/enemies/enemy1_1.glb" },
+        { pos: new THREE.Vector3(4.398, 0.2, 19.538), type: "vampire", modelPath: "/src/animations/enemies/enemy2.glb" },
+        { pos: new THREE.Vector3(9.344, 0.2, -7.436), type: "boss", modelPath: "/src/animations/enemies/boss.glb" }
     ];
 
     const chestPositions = [
-        new THREE.Vector3(-12, 0, -12),
-        new THREE.Vector3(12, 0, -12),
-        new THREE.Vector3(-12, 0, 12),
-        new THREE.Vector3(12, 0, 12)
+        new THREE.Vector3(-1.96, 0.2, 4.082),
+        new THREE.Vector3(13.044, 0.2, -23.754),
+        new THREE.Vector3(-1.538, 0.2, 2.594),
+        new THREE.Vector3(-2.636, 0.2, 14.356)
     ];
 
     const totalSteps = 1 + enemyConfigs.length + 1 + chestPositions.length;

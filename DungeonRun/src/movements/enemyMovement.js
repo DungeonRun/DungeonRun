@@ -71,7 +71,7 @@ export class EnemyMovement {
         this.detectionRange = 10;
         this.attackRange = 1.5;
         this.attackCooldown = 1.2;
-        this.scale = 0.9; // Taller, faster model
+        this.scale = 1; // Taller, faster model
         this.groundOffset = 0.15;
         this.maxHealth = 50;
         this.attackDamage = 3;
