@@ -51,17 +51,17 @@ const SPELL_COOLDOWN = 7.0;
 // Attack hitbox configuration (adjust to fit animations)
 const ATTACK_CONFIG = {
     punch: {
-        delay: 0.12, // seconds after animation start when hit registers
+        delay: 0.1, // seconds after animation start when hit registers
         duration: 0.4, // seconds the hitbox remains active/visible
         distance: -1.0, // forward distance from player origin
         size: new THREE.Vector3(1.0, 3.0, 1.2), // w,h,d
         damage: 8
     },
     sword: {
-        delay: 0.4,
+        delay: 0.7,
         duration: 0.22,
         distance: -1.3,
-        size: new THREE.Vector3(3.4, 3.4, 3.0),
+        size: new THREE.Vector3(3.4, 3.4, 3.4),
         damage: 25
     }
 };
@@ -238,7 +238,7 @@ async function loadLevel(levelLoader, levelName = '') {
     loader = new Loader(scene, camera, renderer, levelName);
     loader.show();
 
-    // ⚠️ CLEANUP BEFORE LOADING NEW LEVEL ⚠️
+    //  CLEANUP BEFORE LOADING NEW LEVEL 
     cleanupCurrentLevel();
     clearScene();
 
@@ -597,21 +597,16 @@ function togglePause() {
     if (isPaused) {
         Object.keys(keysPressed).forEach(k => keysPressed[k] = false);
         if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) document.exitPointerLock();
-        gameTimer.stop(); // ⏸️ Stop timer on pause
+        gameTimer.stop(); //  Stop timer on pause
 
         pauseMenuUI.show(
             () => {
                 isPaused = false;
-                gameTimer.start(); // ▶️ Resume timer on continue
+                gameTimer.start();
             },
             () => {
-                isPaused = false;
-                isGameOver = false;
-                window._levelSwitched = false;
-                // ⚠️ CLEANUP BEFORE RESTARTING LEVEL ⚠️
-                cleanupCurrentLevel();
-                let levelToLoad = currentLevel === 2 ? loadLevel2 : currentLevel === 3 ? loadLevel3 : loadDemoLevel;
-                loadLevel(levelToLoad);
+                // Refresh the page for restart
+                window.location.reload();
             }
         );
     } else {
@@ -620,6 +615,7 @@ function togglePause() {
     }
 }
 
+// In the toggleCameraMode function, update to pass the camera mode:
 async function toggleCameraMode() {
     if (!characterControls || !characterControls.model) return;
     
@@ -637,14 +633,9 @@ async function toggleCameraMode() {
             scene: scene
         });
         
-        // Update character controls to use first person camera
+        // Update character controls to use first person camera with mode flag
         if (characterControls) {
-            characterControls.setActiveCamera(firstPersonCamera);
-        }
-        
-        // Hide player model in first person
-        if (characterControls.model) {
-            characterControls.model.visible = false;
+            characterControls.setActiveCamera(firstPersonCamera, true);
         }
         
     } else {
@@ -662,14 +653,9 @@ async function toggleCameraMode() {
             scene: scene
         });
         
-        // Update character controls to use third person camera
+        // Update character controls to use third person camera with mode flag
         if (characterControls) {
-            characterControls.setActiveCamera(thirdPersonCamera);
-        }
-        
-        // Show player model in third person
-        if (characterControls.model) {
-            characterControls.model.visible = true;
+            characterControls.setActiveCamera(thirdPersonCamera, false);
         }
     }
     
@@ -706,48 +692,38 @@ function animate() {
         }
 
         // Death animation on health <= 0
+        // Death animation on health <= 0
         if (characterControls.health <= 0 && !isGameOver) {
-                // Play death animation and then immediately show Game Over (avoid waiting for callbacks)
-                        try {
-                            try { characterControls.playDeath(); } catch (e) {}
-                            // mark game over state to avoid re-triggering
-                            isGameOver = true;
-
-                            if (gameTimer) gameTimer.stop();
-                            if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
-                                document.exitPointerLock();
-                            }
-
-                            // Stop music immediately when player dies and then show Game Over shortly after.
-                            try { stopAllMusicAndFlushDisposals(); } catch (e) {}
-                            // We avoid relying on callbacks that may be missing; 1200ms is a reasonable default.
-                            setTimeout(() => {
-                                try {
-                                    gameOverUI.show(async () => {
-                                        // ensure any active loader is hidden before restarting
-                                        try { if (loader) loader.hide(); } catch (e) {}
-                                        try { stopAllMusicAndFlushDisposals(); } catch (e) {}
-                                        cleanupCurrentLevel();
-                                        await loadLevel(loadDemoLevel);
-                                    });
-                                } catch (e) { console.warn('Error showing gameOverUI', e); }
-                            }, 1200);
-
-                        } catch (e) {
-                            // fallback behaviour: ensure game over still shows
-                            isGameOver = true;
-                            if (gameTimer) gameTimer.stop();
-                                try {
-                                    // ensure music stopped before showing Game Over
-                                    try { stopAllMusicAndFlushDisposals(); } catch (e) {}
-                                    gameOverUI.show(async () => {
-                                        try { if (loader) loader.hide(); } catch (e) {}
-                                        try { stopAllMusicAndFlushDisposals(); } catch (e) {}
-                                        cleanupCurrentLevel();
-                                        await loadLevel(loadDemoLevel);
-                                    });
-                                } catch (e) {}
-                        }
+            try {
+                try { characterControls.playDeath(); } catch (e) {}
+                isGameOver = true;
+                
+                if (gameTimer) gameTimer.stop();
+                if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
+                    document.exitPointerLock();
+                }
+                
+                try { stopAllMusicAndFlushDisposals(); } catch (e) {}
+                setTimeout(() => {
+                    try {
+                        gameOverUI.show(() => {
+                            // Refresh the page instead of restarting the level
+                            window.location.reload();
+                        });
+                    } catch (e) { console.warn('Error showing gameOverUI', e); }
+                }, 1200);
+            } catch (e) {
+                // fallback behaviour
+                isGameOver = true;
+                if (gameTimer) gameTimer.stop();
+                try {
+                    try { stopAllMusicAndFlushDisposals(); } catch (e) {}
+                    gameOverUI.show(() => {
+                        // Refresh the page instead of restarting the level
+                        window.location.reload();
+                    });
+                } catch (e) {}
+            }
         }
     }
 
@@ -765,7 +741,7 @@ function animate() {
                         if (!enemy || !enemy.enemyModel) return;
                         enemy.enemyModel.getWorldPosition(tmpEnemyPos);
                         const distSq = tmpEnemyPos.distanceToSquared(cameraWorldPos);
-                        const tooFar = distSq > (40 * 40);
+                        const tooFar = distSq > (60 * 60);
                         if (tooFar) {
                             if (enemy.enemyModel.visible) enemy.enemyModel.visible = false;
                             if (enemy.healthBar && enemy.healthBar.group) enemy.healthBar.group.visible = false;
@@ -788,56 +764,56 @@ function animate() {
                 });
             }
 
-        // batch enemy removals to avoid single-frame spikes
+        // Batch enemy removals to avoid single-frame spikes
         for (let i = enemies.length - 1; i >= 0; i--) {
             const enemy = enemies[i];
             if (enemy.health <= 0) {
+                if (enemy.healthBar) {enemy.healthBar.remove();}
                 removalQueue.push(enemy);
                 enemies.splice(i, 1);
             }
         }
-        // process up to 2 removals per frame, but stagger heavy disposal via DisposalManager
+
+        // Process removals more efficiently - limit to 1 per frame during heavy combat
         let removalsThisFrame = 0;
-        while (removalQueue.length > 0 && removalsThisFrame < 2) {
+        const MAX_REMOVALS_PER_FRAME = enemies.length > 5 ? 1 : 3; // Be more conservative when many enemies are dying
+
+        while (removalQueue.length > 0 && removalsThisFrame < MAX_REMOVALS_PER_FRAME) {
             const enemy = removalQueue.shift();
-            try {
-                // spawn small kill particle burst before removing visual model
-                try {
-                        if (enemy && enemy.enemyModel) {
-                        // spawn death particles slightly above the model and use stronger upward spread
-                        const pos = enemy.enemyModel.position.clone();
-                        killParticleManager.spawn(pos, { count: 24, offsetY: 1.0, upwardSpread: 2.0 });
-                    }
-                } catch (e) {}
-
-                // Immediately make model invisible and non-interactive
-                try {
-                    if (enemy && enemy.enemyModel) {
-                        enemy.enemyModel.visible = false;
-                        // stop animations if any
-                        if (enemy.mixer && typeof enemy.mixer.stopAllAction === 'function') {
-                            try { enemy.mixer.stopAllAction(); } catch (e) {}
-                        }
-                        // Queue for staged disposal to avoid spikes
-                        try { disposalManager.enqueue(enemy.enemyModel); } catch (e) { try { if (enemy.enemyModel.parent) enemy.enemyModel.parent.remove(enemy.enemyModel); } catch (e) {} }
-                    }
-                } catch (e) {}
-
-                // remove healthbar immediately (UI element)
-                try { if (enemy.healthBar) enemy.healthBar.remove(); } catch (e) {}
-
-                // debug helper remove or queue
-                try {
-                    if (enemy.debugHelper) {
-                        try { scene.remove(enemy.debugHelper); } catch (e) {}
-                        // debugHelper likely small; attempt disposal
-                        try { disposalManager.enqueue(enemy.debugHelper); } catch (e) {}
-                        enemy.debugHelper = null;
-                    }
-                } catch (e) {}
-
-            } catch (e) { console.warn('Error removing enemy:', e); }
+            if (!enemy) continue;
+            
             removalsThisFrame++;
+            
+            // Use the cleanup method if available
+            if (enemy.cleanup && typeof enemy.cleanup === 'function') {
+                enemy.cleanup();
+            } else {
+                // Fallback to manual cleanup
+                if (enemy.enemyModel) {
+                    enemy.enemyModel.visible = false;
+                    if (enemy.enemyModel.parent) {
+                        enemy.enemyModel.parent.remove(enemy.enemyModel);
+                    }
+                }
+                
+            }
+            
+            // Schedule particles for next frame
+            setTimeout(() => {
+                if (enemy.enemyModel) {
+                    const pos = enemy.enemyModel.position.clone();
+                    killParticleManager.spawn(pos, { 
+                        count: 12, 
+                        offsetY: 0.5, 
+                        upwardSpread: 1.5 
+                    });
+                }
+            }, 0);
+            
+            // Queue for disposal
+            if (enemy.enemyModel) {
+                disposalManager.enqueue(enemy.enemyModel);
+            }
         }
 
         if (keyAnimator) keyAnimator();
@@ -926,7 +902,7 @@ function animate() {
 async function switchLevel() {
     console.log(`Switching from Level ${currentLevel}...`);
 
-    // ⚠️ CLEANUP BEFORE SWITCHING LEVEL ⚠️
+    //  CLEANUP BEFORE SWITCHING LEVEL 
     cleanupCurrentLevel();
     
     currentLevel = currentLevel === 1 ? 2 : currentLevel === 2 ? 3 : 1;
@@ -1178,6 +1154,6 @@ function onWindowResize() {
 window.addEventListener('resize', onWindowResize);
 
 // === Initialize ===
-loadLevel(loadDemoLevel, 'LEVEL 1');
-//loadLevel(loadLevel2, 'LEVEL 2');
+//loadLevel(loadDemoLevel, 'LEVEL 1');
+loadLevel(loadLevel3, 'LEVEL 3');
 animate();

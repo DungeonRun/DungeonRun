@@ -203,12 +203,12 @@ export async function loadLevel2({
     collidables.push(groundPlane);
 
     // Debug: Add spawn marker to visualize spawn position
-    const spawnMarker = new THREE.Mesh(
-        new THREE.SphereGeometry(0.5),
-        new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.7 })
-    );
-    spawnMarker.position.copy(playerSpawn);
-    scene.add(spawnMarker);
+    //const spawnMarker = new THREE.Mesh(
+    //    new THREE.SphereGeometry(0.5),
+    //    new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.7 })
+    //);
+    //spawnMarker.position.copy(playerSpawn);
+    //scene.add(spawnMarker);
 
     // Player
     let model;
@@ -307,7 +307,7 @@ export async function loadLevel2({
     });
 
     // Key
-    const keyPosition = new THREE.Vector3(100.37, 0.15, -169.24);
+    const keyPosition = new THREE.Vector3(100.37, 0.2, -169.24);
     const keyLoadPromise = addGlowingKey(scene, keyPosition).then(({ animator, key }) => {
         key.visible = true;
         if (onKeyLoaded) onKeyLoaded({ animator, key });

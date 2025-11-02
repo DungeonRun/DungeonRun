@@ -11,7 +11,7 @@ export class GameOverUI {
 
         this.isGameOver = true;
 
-        //  Create overlay container
+        // Create overlay container
         this.overlay = document.createElement('div');
         this.overlay.id = 'game-over-overlay';
         Object.assign(this.overlay.style, {
@@ -32,7 +32,7 @@ export class GameOverUI {
             animation: 'fadeIn 1s ease'
         });
 
-        //  Inject styled inner content
+        // Inject styled inner content
         this.overlay.innerHTML = `
             <h1 style="
                 font-size: 4em;
@@ -67,17 +67,17 @@ export class GameOverUI {
                 box-shadow: 0 8px 20px rgba(0,0,0,0.5);
                 text-transform: uppercase;
             ">
-                Retry
+                Retry Level
             </button>
         `;
 
         document.body.appendChild(this.overlay);
 
-        //  Play sound
+        // Play sound
         this.gameOverSound.currentTime = 0;
         this.gameOverSound.play().catch(err => console.log('Sound blocked until interaction:', err));
 
-        //  Button behavior
+        // Button behavior
         const retryButton = document.getElementById('retry-btn');
         retryButton.addEventListener('mouseenter', () => {
             retryButton.style.background = 'linear-gradient(145deg, #ff4500, #ff0000)';

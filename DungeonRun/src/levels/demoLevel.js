@@ -141,113 +141,7 @@ export async function loadDemoLevel({
                         if (obj.name.toLowerCase().includes('ground') || obj.name.toLowerCase().includes('floor')) {
                             obj.userData.isGround = true;
                         }
-                        
-                        console.log(`\nMesh: ${obj.name || 'Unnamed'}`);
-                        console.log('Position:', obj.position.toArray());
-                        console.log('Has UV:', !!obj.geometry.attributes.uv);
-                        
-                        // FIXED: Handle materials with proper texture settings
-                        if (obj.material) {
-                            const materials = Array.isArray(obj.material) ? obj.material : [obj.material];
-                            
-                            materials.forEach((mat, index) => {
-                                console.log(`  Material ${index}:`, mat.name || 'Unnamed');
-                                console.log('    Color:', mat.color?.getHexString());
-                                console.log('    Roughness:', mat.roughness);
-                                console.log('    Metalness:', mat.metalness);
-                                
-                                // CRITICAL FIX: Try different wrapping modes
-                                // Base Color / Albedo Map
-                                if (mat.map) {
-                                    console.log('    ✓ Base Color Map found');
-                                    console.log('      Size:', mat.map.image?.width, 'x', mat.map.image?.height);
-                                    mat.map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-                                    mat.map.encoding = THREE.sRGBEncoding;
-                                    
-                                    // FIX: Try ClampToEdge instead of RepeatWrapping
-                                    // This often fixes "broken lines" issues
-                                    mat.map.wrapS = THREE.ClampToEdgeWrapping;
-                                    mat.map.wrapT = THREE.ClampToEdgeWrapping;
-                                    
-                                    // Log current repeat values from Blender
-                                    console.log('      Repeat:', mat.map.repeat.x, mat.map.repeat.y);
-                                    console.log('      Offset:', mat.map.offset.x, mat.map.offset.y);
-                                    
-                                    // CRITICAL: Reset repeat to 1,1 if it's causing issues
-                                    mat.map.repeat.set(1, 1);
-                                    mat.map.offset.set(0, 0);
-                                    
-                                    mat.map.needsUpdate = true;
-                                } else {
-                                    console.log('    ✗ No Base Color Map');
-                                }
-                                
-                                // Normal Map
-                                if (mat.normalMap) {
-                                    console.log('    ✓ Normal Map found');
-                                    mat.normalMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
-                                    mat.normalMap.wrapS = THREE.ClampToEdgeWrapping;
-                                    mat.normalMap.wrapT = THREE.ClampToEdgeWrapping;
-                                    mat.normalMap.repeat.set(1, 1);
-                                    mat.normalMap.offset.set(0, 0);
-                                    
-                                    // Ensure normal scale is set
-                                    if (!mat.normalScale) {
-                                        mat.normalScale = new THREE.Vector2(1, 1);
-                                    }
-                                    console.log('      Normal Scale:', mat.normalScale.x, mat.normalScale.y);
-                                    mat.normalMap.needsUpdate = true;
-                                } else {
-                                    console.log('    ✗ No Normal Map');
-                                }
-                                
-                                // Roughness Map
-                                if (mat.roughnessMap) {
-                                    console.log('    ✓ Roughness Map found');
-                                    mat.roughnessMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
-                                    mat.roughnessMap.wrapS = THREE.ClampToEdgeWrapping;
-                                    mat.roughnessMap.wrapT = THREE.ClampToEdgeWrapping;
-                                    mat.roughnessMap.repeat.set(1, 1);
-                                    mat.roughnessMap.offset.set(0, 0);
-                                    mat.roughnessMap.needsUpdate = true;
-                                } else {
-                                    console.log('    ✗ No Roughness Map');
-                                }
-                                
-                                // Metalness Map
-                                if (mat.metalnessMap) {
-                                    console.log('    ✓ Metalness Map found');
-                                    mat.metalnessMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
-                                    mat.metalnessMap.wrapS = THREE.ClampToEdgeWrapping;
-                                    mat.metalnessMap.wrapT = THREE.ClampToEdgeWrapping;
-                                    mat.metalnessMap.repeat.set(1, 1);
-                                    mat.metalnessMap.offset.set(0, 0);
-                                    mat.metalnessMap.needsUpdate = true;
-                                }
-                                
-                                // AO Map (requires UV2)
-                                if (mat.aoMap) {
-                                    console.log('    ✓ AO Map found');
-                                    mat.aoMap.anisotropy = renderer.capabilities.getMaxAnisotropy();
-                                    mat.aoMap.wrapS = THREE.ClampToEdgeWrapping;
-                                    mat.aoMap.wrapT = THREE.ClampToEdgeWrapping;
-                                    mat.aoMap.repeat.set(1, 1);
-                                    mat.aoMap.offset.set(0, 0);
-                                    
-                                    // Check for UV2 channel
-                                    if (obj.geometry && !obj.geometry.attributes.uv2) {
-                                        console.warn('    ⚠ AO map needs UV2, copying from UV');
-                                        obj.geometry.setAttribute('uv2', obj.geometry.attributes.uv);
-                                    }
-                                    mat.aoMap.needsUpdate = true;
-                                }
-                                
-                                // Ensure proper rendering
-                                mat.side = THREE.FrontSide;
-                                mat.needsUpdate = true;
-                            });
-                        }
-                        
+                    
                         if (obj.geometry && obj.geometry.computeBoundsTree) deferComputeBoundsTree(obj.geometry);
                     }
                 });
@@ -428,7 +322,7 @@ export async function loadDemoLevel({
     });
 
     //  Key
-    const keyPosition = new THREE.Vector3(-7, 0.15, -16);
+    const keyPosition = new THREE.Vector3(-7, 0.2, -16);
     const keyLoadPromise = addGlowingKey(scene, keyPosition).then(({ animator, key }) => {
         key.visible = false;
         if (onKeyLoaded) onKeyLoaded({ animator, key });
