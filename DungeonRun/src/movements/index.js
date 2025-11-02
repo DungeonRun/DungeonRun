@@ -58,7 +58,7 @@ const ATTACK_CONFIG = {
         damage: 8
     },
     sword: {
-        delay: 1.0,
+        delay: 0.7,
         duration: 0.22,
         distance: -1.3,
         size: new THREE.Vector3(3.4, 3.4, 3.4),
