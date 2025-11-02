@@ -17,6 +17,12 @@ export async function loadLevel3({
     onEnemiesLoaded,
     onKeyLoaded
 }) {
+    //fix lighting
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.001;
+    renderer.physicallyCorrectLights = true;
+
     THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -30,7 +36,7 @@ export async function loadLevel3({
 
     //  Ambient and Directional Lighting
     scene.add(new THREE.AmbientLight(0xffffff, 0.3));
-    const dirLight = new THREE.DirectionalLight(0xffffff, 0.4);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 1);
     dirLight.position.set(-60, 100, -10);
     dirLight.castShadow = true;
     dirLight.shadow.camera.top = 50;
@@ -48,92 +54,17 @@ export async function loadLevel3({
     
     // Store reference in scene for cleanup if needed
     scene.userData.levelMusic = level3Music;
-
-    //  Floor
-    const textureLoader = new THREE.TextureLoader();
-    const [sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion] = await Promise.all([
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_COLOR.jpg'),
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_NRM.jpg'),
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_DISP.jpg'),
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_OCC.jpg')
-    ]);
-
-    const WIDTH = 80, LENGTH = 80;
-    const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 100, 100);
-    const material = new THREE.MeshStandardMaterial({
-        map: sandBaseColor,
-        normalMap: sandNormalMap,
-        displacementMap: sandHeightMap,
-        displacementScale: 0.05,
-        aoMap: sandAmbientOcclusion,
-        roughness: 0.7,
-        metalness: 0.0,
-        color: 0x000000,
-        emissive: 0x332200,
-        emissiveIntensity: 0.1
-    });
-
-    [material.map, material.normalMap, material.displacementMap, material.aoMap].forEach(map => {
-        map.wrapS = map.wrapT = THREE.RepeatWrapping;
-        map.repeat.set(8, 8);
-        map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    });
-
-    const floor = new THREE.Mesh(geometry, material);
-    floor.receiveShadow = true;
-    floor.rotation.x = -Math.PI / 2;
-    scene.add(floor);
-
-    // include floor for collision checks
-    floor.name = 'ground';
-    // prefer BVH per-surface collision for the floor
-    floor.userData.staticCollision = true;
-    if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
-
-    //  Room Cube
-    const size = 30;
-    const roomGeometry = new THREE.BoxGeometry(size, size, size);
-    const roomMaterial = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        side: THREE.BackSide
-    });
-    const room = new THREE.Mesh(roomGeometry, roomMaterial);
-    room.position.y = size / 2 - 0.05;
-    room.receiveShadow = true;
-    scene.add(room);
-
-    const half = size / 2;
-    const wallThickness = 0.2;
-    const wallPlanes = [
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })), // +X
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })), // -X
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })), // +Z
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false }))  // -Z
-    ];
-
-    wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z);
-    wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z);
-    wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half);
-    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);
-
-    wallPlanes.forEach(wall => {
-        // mark wall planes as static collision geometry and defer BVH building when available
-        wall.userData.staticCollision = true;
-        if (wall.geometry && wall.geometry.computeBoundsTree) deferComputeBoundsTree(wall.geometry);
-        scene.add(wall);
-    });
-    const collidables = [...wallPlanes];
-    collidables.push(floor);
+    const collidables = [];
 
     const playerSpawn = new THREE.Vector3(0, 1, 0);
 
     const enemyConfigs = [
-        { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
-        { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(-3, 1, -8), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
-        { pos: new THREE.Vector3(1, 1, -8), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
-        { pos: new THREE.Vector3(2, 1, -8), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
-        { pos: new THREE.Vector3(3, 2, -8), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" }
+        // { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
+        // { pos: new THREE.Vector3(3, 1, -12), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        // { pos: new THREE.Vector3(-3, 1, -8), type: "goblin", modelPath: "../../src/animations/enemies/enemy1_1.glb" },
+        // { pos: new THREE.Vector3(1, 1, -8), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
+        // { pos: new THREE.Vector3(2, 1, -8), type: "vampire", modelPath: "../../src/animations/enemies/enemy2.glb" },
+        // { pos: new THREE.Vector3(3, 2, -8), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" }
     ];
 
     const chestPositions = [
@@ -151,6 +82,8 @@ export async function loadLevel3({
     }
 
     // LOAD LEVEL GEOMETRY FIRST
+    const roomPosition = new THREE.Vector3(10, -56, 45);
+
     const levelModelPromise = new Promise(resolve => {
         const levelLoader = new GLTFLoader();
         levelLoader.load(
@@ -207,24 +140,6 @@ export async function loadLevel3({
 
     // WAIT FOR LEVEL GEOMETRY TO LOAD BEFORE PLAYER
     const levelModel = await levelModelPromise;
-
-    // NEW: Create a simple ground plane at the correct height to ensure player stays on ground
-    const groundPlane = new THREE.Mesh(
-        new THREE.PlaneGeometry(200, 200),
-        new THREE.MeshBasicMaterial({ 
-            color: 0x00ff00, 
-            transparent: true, 
-            opacity: 0.3,
-            visible: false // Make invisible but still functional for collisions
-        })
-    );
-    groundPlane.rotation.x = -Math.PI / 2;
-    groundPlane.position.y = 0.05; // Match enemy ground height
-    groundPlane.name = 'ground_plane';
-    groundPlane.userData.staticCollision = true;
-    groundPlane.userData.isGround = true;
-    scene.add(groundPlane);
-    collidables.push(groundPlane);
 
     // Debug: Add spawn marker to visualize spawn position
     const spawnMarker = new THREE.Mesh(
