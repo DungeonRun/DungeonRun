@@ -2,7 +2,26 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>DungeonRun example</title>
+    <title>DungeonRun</title>
+    <!-- Import map to resolve bare module specifiers in browsers when serving static files.
+         This variant maps to local /node_modules paths so imports like
+         `import * as THREE from 'three'` and `import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js'`
+         resolve to files under /node_modules when served by your web server.
+
+         IMPORTANT: Your remote server must be configured to serve the project's
+         `node_modules` directory at the URL path `/node_modules/` for this to work.
+         If you prefer a CDN-based import map, revert to the previous CDN entries.
+    -->
+    <script type="importmap">
+    {
+      "imports": {
+        "three": "../../node_modules/three/build/three.module.js",
+        "three/": "../../node_modules/three/",
+        "three-mesh-bvh": "../../node_modules/three-mesh-bvh/build/index.module.js",
+        "three-mesh-bvh/": "../../node_modules/three-mesh-bvh/"
+      }
+    }
+    </script>
     <style>
       body {
         margin: 0px;

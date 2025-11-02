@@ -20,13 +20,14 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 - Enemy avatars can follow you and attack you
 - Added better animations based on the Main screen login ui across Credits,Instructions and settings and across game center
 - Added gameover sound within the game and plays when the game over page loads
-- 
+- Added sounds ,music for all the levels and ensured that they do not overlap when transitioning to other levels
+- Handled game instructions as well as populated the game menu instructions as you log in the game
 
 ### 2. Niel Grobler
 - **Features Developed**: 
-  - added health, damage, and the player being able to attack with punching, swords or spells (with a custom shader for projectiles)
-  - implemented level loading functionality and loading screen, game overs, and collision(?)
-  - large codebase refactoring and fixing bugs in other's features
+  - added health, damage, collisions, and the player being able to attack with punching, swords or spells (with a custom shader for projectiles)
+  - implemented level loading functionality and loading screen (another  shader), some ui components like enemy counter and game overs.
+  - large codebase refactoring and fixing bugs
   - bunch of commits i can't name, check commit logs
   
 - **Notes**: 
