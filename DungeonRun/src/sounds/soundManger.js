@@ -2,7 +2,9 @@ export class SoundManager {
     constructor() {
         this.currentMusic = null;
         this.isMuted = false;
-        this.musicVolume = parseFloat(localStorage.getItem('musicVolume')) || 0.5;
+        this.musicVolume = parseFloat(localStorage.getItem('musicVolume')) || 0.3; // Lower default music volume
+        this.sfxVolume = parseFloat(localStorage.getItem('sfxVolume')) || 0.8; // Higher default for sound effects
+        this.activeSounds = new Set(); // Track active sound effects
     }
 
     playLevelMusic(musicPath, fadeInDuration = 2000) {
@@ -55,12 +57,55 @@ export class SoundManager {
         }
     }
 
-    setVolume(volume) {
-        this.musicVolume = volume;
-        if (this.currentMusic) {
-            this.currentMusic.volume = volume;
+    /**
+     * Play a sound effect (non-looping, higher volume than music)
+     * @param {string} soundPath - Path to the sound file
+     * @param {Object} options - Sound options
+     * @param {number} options.volume - Volume multiplier (0.0 to 1.0), defaults to sfxVolume
+     * @param {boolean} options.spatial - Whether to use 3D spatial audio (not implemented in basic version)
+     */
+    playSound(soundPath, options = {}) {
+        const {
+            volume = 1.0,
+            spatial = false
+        } = options;
+
+        try {
+            const sound = new Audio(soundPath);
+            sound.volume = Math.min(1.0, this.sfxVolume * volume);
+            
+            // Track the sound
+            this.activeSounds.add(sound);
+            
+            // Remove from tracking when finished
+            sound.addEventListener('ended', () => {
+                this.activeSounds.delete(sound);
+            });
+
+            // Play the sound
+            sound.play().catch(err => {
+                console.warn('Sound effect play failed:', err);
+                this.activeSounds.delete(sound);
+            });
+
+            return sound;
+        } catch (err) {
+            console.warn('Error creating sound:', err);
+            return null;
         }
-        localStorage.setItem('musicVolume', volume.toString());
+    }
+
+    setMusicVolume(volume) {
+        this.musicVolume = Math.max(0, Math.min(1, volume));
+        if (this.currentMusic) {
+            this.currentMusic.volume = this.musicVolume;
+        }
+        localStorage.setItem('musicVolume', this.musicVolume.toString());
+    }
+
+    setSfxVolume(volume) {
+        this.sfxVolume = Math.max(0, Math.min(1, volume));
+        localStorage.setItem('sfxVolume', this.sfxVolume.toString());
     }
 
     muteAll() {
@@ -68,6 +113,10 @@ export class SoundManager {
         if (this.currentMusic) {
             this.currentMusic.volume = 0;
         }
+        // Mute all active sound effects
+        this.activeSounds.forEach(sound => {
+            sound.volume = 0;
+        });
     }
 
     unmuteAll() {
@@ -75,6 +124,20 @@ export class SoundManager {
         if (this.currentMusic) {
             this.currentMusic.volume = this.musicVolume;
         }
+        // Note: Active sounds will still be at 0 volume, but new sounds will play at correct volume
+    }
+
+    // Clean up all sounds (useful when changing levels)
+    stopAllSounds() {
+        this.activeSounds.forEach(sound => {
+            try {
+                sound.pause();
+                sound.currentTime = 0;
+            } catch (e) {
+                // Ignore errors
+            }
+        });
+        this.activeSounds.clear();
     }
 }
 

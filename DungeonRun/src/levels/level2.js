@@ -17,6 +17,13 @@ export async function loadLevel2({
     onEnemiesLoaded,
     onKeyLoaded
 }) {
+
+     //fix lighting
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.001;
+    renderer.physicallyCorrectLights = true;
+
     THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -139,7 +146,7 @@ export async function loadLevel2({
                             obj.userData.isGround = true;
                         }
                         
-                        if (obj.geometry && obj.geometry.computeBoundsTree) {
+                        if (true || obj.geometry && obj.geometry.computeBoundsTree) {
                             deferComputeBoundsTree(obj.geometry);
                         }
                     }
