@@ -15,9 +15,9 @@ export class KillParticleManager {
             depthWrite: false,
             uniforms: {
                 uTime: { value: 0.0 },
-                uLifetime: { value: 0.3 },
+                uLifetime: { value: 0.7 },
                 uColor: { value: new THREE.Vector3(1.0, 0.5, 0.2) },
-                uSize: { value: 0.18 }
+                uSize: { value: 0.60 }
             },
             vertexShader: `
                 attribute vec3 aVelocity;

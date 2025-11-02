@@ -6,47 +6,93 @@ export class ProjectileManager {
         this.enemies = enemies;
         this.projectiles = [];
         this.debugHelpers = [];
-        //this.debugModeRef = debugModeRef;
-        // pooling to avoid repeated geometry/material allocation
         this._pool = [];
         this._sharedGeometry = new THREE.SphereGeometry(0.5, 20, 20);
         this._sharedMaterial = new THREE.ShaderMaterial({
-            uniforms: { time: { value: 0.0 } },
+            uniforms: { 
+                time: { value: 0.0 },
+                randomSeed: { value: Math.random() * 1000.0 } // Unique seed per projectile
+            },
             vertexShader: `
                 uniform float time;
+                uniform float randomSeed;
                 varying vec3 vNormal;
                 varying vec3 vPosition;
 
                 void main() {
                     vNormal = normal;
-                    float shimmer = sin(time * 8.0 + position.x * 10.0 + position.y * 15.0 + position.z * 12.0);
-                    float shimmerStrength = 0.04; 
-                    vec3 displacedPosition = position + normal * shimmer * shimmerStrength;
+                    vPosition = position;
+                    
+                    // Generate 3 different random directions using the seed
+                    vec3 dir1 = normalize(vec3(
+                        sin(randomSeed * 1.23),
+                        cos(randomSeed * 2.34), 
+                        sin(randomSeed * 3.45)
+                    ));
+                    
+                    vec3 dir2 = normalize(vec3(
+                        cos(randomSeed * 4.56),
+                        sin(randomSeed * 5.67),
+                        cos(randomSeed * 6.78)
+                    ));
+                    
+                    vec3 dir3 = normalize(vec3(
+                        sin(randomSeed * 7.89),
+                        cos(randomSeed * 8.90),
+                        sin(randomSeed * 9.01)
+                    ));
+                    
+                    // 3 different shimmer effects with different frequencies and directions
+                    float shimmer1 = sin(time * 12.0 + dot(position, dir1) * 8.0 + randomSeed);
+                    float shimmer2 = cos(time * 15.0 + dot(position, dir2) * 10.0 + randomSeed * 2.0);
+                    float shimmer3 = sin(time * 18.0 + dot(position, dir3) * 12.0 + randomSeed * 3.0);
+                    
+                    // Combine all shimmer effects for chaotic movement
+                    float combinedShimmer = (shimmer1 + shimmer2 + shimmer3) / 3.0;
+                    float shimmerStrength = 0.2; // Increased for more dramatic effect
+                    
+                    // Apply displacement in multiple directions for chaotic look
+                    vec3 displacedPosition = position + 
+                        dir1 * shimmer1 * shimmerStrength * 0.5 +
+                        dir2 * shimmer2 * shimmerStrength * 0.7 +
+                        dir3 * shimmer3 * shimmerStrength * 0.9;
+                    
                     gl_Position = projectionMatrix * modelViewMatrix * vec4(displacedPosition, 1.0);
                 }
             `,
             fragmentShader: `
                 uniform float time;
+                uniform float randomSeed;
                 varying vec3 vNormal;
+                varying vec3 vPosition;
+
                 void main() {
-                    float colorSpeed1 = time * 1.5;
-                    float colorSpeed2 = time * 2.0;
-                    float colorSpeed3 = time * 2.5;
+                    // Chaotic color variations using the random seed
+                    float colorSpeed1 = time * 2.0 + randomSeed;
+                    float colorSpeed2 = time * 3.0 + randomSeed * 1.5;
+                    float colorSpeed3 = time * 4.0 + randomSeed * 2.0;
                     
-                    //base pink-purple
+                    // Base pink-purple with chaotic variations
                     vec3 baseColor;
-                    baseColor.r = 0.8 + 0.3 * sin(colorSpeed1);
-                    baseColor.g = 0.1 + 0.1 * sin(colorSpeed2 + 1.0);
-                    baseColor.b = 0.7 + 0.4 * sin(colorSpeed3 + 2.0);
+                    baseColor.r = 0.8 + 0.4 * sin(colorSpeed1 + vPosition.x * 5.0);
+                    baseColor.g = 0.1 + 0.2 * sin(colorSpeed2 + vPosition.y * 6.0);
+                    baseColor.b = 0.7 + 0.5 * sin(colorSpeed3 + vPosition.z * 7.0);
                     
-                    // Intense, oscillating glow with multiple frequencies
-                    float glow1 = 0.5 + 0.5 * sin(time * 4.0 + length(vNormal));
-                    float glow2 = 0.5 + 0.5 * sin(time * 6.0 + length(vNormal) * 2.0);
-                    float glow3 = 0.5 + 0.5 * sin(time * 8.0 + length(vNormal) * 3.0);
-                    float combinedGlow = (glow1 + glow2 + glow3) / 3.0;
-                    float intenseGlow = 1.0 + 7.0 * combinedGlow; // Much brighter glow
+                    // Multiple chaotic glow patterns
+                    float glow1 = 0.5 + 0.5 * sin(time * 8.0 + dot(vNormal, vec3(1.0, 0.0, 0.0)) * 10.0 + randomSeed);
+                    float glow2 = 0.5 + 0.5 * cos(time * 10.0 + dot(vNormal, vec3(0.0, 1.0, 0.0)) * 12.0 + randomSeed * 1.3);
+                    float glow3 = 0.5 + 0.5 * sin(time * 14.0 + dot(vNormal, vec3(0.0, 0.0, 1.0)) * 14.0 + randomSeed * 1.7);
+                    
+                    // Combine glows chaotically
+                    float combinedGlow = (glow1 * 0.4 + glow2 * 0.3 + glow3 * 0.3);
+                    float intenseGlow = 1.0 + 8.0 * combinedGlow;
+                    
+                    // Add some high-frequency noise for extra chaos
+                    float noise = sin(time * 20.0 + vPosition.x * 15.0 + vPosition.y * 18.0 + vPosition.z * 12.0 + randomSeed);
+                    intenseGlow += 2.0 * noise * 0.3;
+                    
                     vec3 finalColor = baseColor * intenseGlow;
-                    finalColor = clamp(finalColor, 0.0, 1.5); //clamp
+                    finalColor = clamp(finalColor, 0.0, 2.0);
                     
                     gl_FragColor = vec4(finalColor, 0.9);
                 }
@@ -54,6 +100,7 @@ export class ProjectileManager {
             transparent: true
         });
     }
+
 
     fireSpell(origin, direction) {
         let spell = null;
