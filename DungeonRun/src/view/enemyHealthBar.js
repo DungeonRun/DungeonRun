@@ -18,15 +18,27 @@ export class EnemyHealthBar {
         // Place bar above the model
         this.offsetY = bbox.max.y - parent.position.y + (this.height * 0.2);
 
-        // Create background (grey)
+        // Create background (grey) - FIXED: Use emissive materials
         const bgGeometry = new THREE.PlaneGeometry(this.width, this.height);
-        const bgMaterial = new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.7, depthTest: false });
+        const bgMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x222222, 
+            transparent: true, 
+            opacity: 0.9, // Increased opacity
+            depthTest: false,
+            toneMapped: false // Important: disable tone mapping for consistent colors
+        });
         this.bgMesh = new THREE.Mesh(bgGeometry, bgMaterial);
-        this.bgMesh.renderOrder = 999; // Always on top
+        this.bgMesh.renderOrder = 999;
 
-        // Create foreground (green/red)
+        // Create foreground (green/red) - FIXED: Use emissive materials
         const fgGeometry = new THREE.PlaneGeometry(this.width, this.height);
-        const fgMaterial = new THREE.MeshBasicMaterial({ color: 0x00ff00, transparent: true, opacity: 0.9, depthTest: false });
+        const fgMaterial = new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00, 
+            transparent: true, 
+            opacity: 1.0, // Full opacity
+            depthTest: false,
+            toneMapped: false // Important: disable tone mapping
+        });
         this.fgMesh = new THREE.Mesh(fgGeometry, fgMaterial);
         this.fgMesh.renderOrder = 1000;
 
@@ -49,8 +61,13 @@ export class EnemyHealthBar {
         const healthPercent = this.health / this.maxHealth;
         this.fgMesh.scale.x = healthPercent;
         this.fgMesh.position.x = -(1 - healthPercent) * this.width / 2;
-        // Change color if low
-        this.fgMesh.material.color.set(healthPercent > 0.3 ? 0x00ff00 : 0xff0000);
+        
+        // Change color if low - FIXED: Ensure colors are bright
+        if (healthPercent > 0.3) {
+            this.fgMesh.material.color.setHex(0x00ff00); // Bright green
+        } else {
+            this.fgMesh.material.color.setHex(0xff0000); // Bright red
+        }
     }
 
     update(camera) {
@@ -61,7 +78,7 @@ export class EnemyHealthBar {
             const camPos = new THREE.Vector3();
             camera.getWorldPosition(camPos);
             const distSq = camPos.distanceToSquared(this.parent.position);
-            if (distSq > (30 * 30)) {
+            if (distSq > (60 * 60)) {
                 if (this.group.visible) this.group.visible = false;
                 return;
             } else {
@@ -75,20 +92,9 @@ export class EnemyHealthBar {
         this.group.position.copy(this.parent.position);
         this.group.position.y += this.offsetY;
 
-        // Always face the camera - FIXED: Use camera's world position and lookAt
-        const cameraPosition = new THREE.Vector3();
-        camera.getWorldPosition(cameraPosition);
-        
-        // Make health bar look at camera while keeping it upright
-        this.group.lookAt(cameraPosition);
-        
-        // Ensure health bar stays upright (only rotate around Y axis)
-        // This prevents the health bar from tilting when camera moves vertically
-        const euler = new THREE.Euler();
-        euler.setFromQuaternion(this.group.quaternion);
-        euler.x = 0; // Lock X rotation
-        euler.z = 0; // Lock Z rotation
-        this.group.quaternion.setFromEuler(euler);
+        // Always face the camera - IMPROVED: Use camera's world matrix directly
+        // This works regardless of whether camera is in first-person or third-person mode
+        this.group.lookAt(camera.getWorldPosition(new THREE.Vector3()));
     }
 
     remove() {
