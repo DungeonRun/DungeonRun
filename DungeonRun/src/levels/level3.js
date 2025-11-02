@@ -17,6 +17,12 @@ export async function loadLevel3({
     onEnemiesLoaded,
     onKeyLoaded
 }) {
+    //fix lighting
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.001;
+    renderer.physicallyCorrectLights = true;
+
     THREE.BufferGeometry.prototype.computeBoundsTree = computeBoundsTree;
     THREE.BufferGeometry.prototype.disposeBoundsTree = disposeBoundsTree;
     THREE.Mesh.prototype.raycast = acceleratedRaycast;
@@ -149,6 +155,91 @@ export async function loadLevel3({
     function updateLoader() {
         if (loader) loader.updateProgress((++completedSteps / totalSteps) * 100);
     }
+
+    // LOAD LEVEL GEOMETRY FIRST
+    const levelModelPromise = new Promise(resolve => {
+        const levelLoader = new GLTFLoader();
+        levelLoader.load(
+            '../../src/levels/level3/level3.glb',
+            (gltf) => {
+                const levelModel = gltf.scene;
+                levelModel.position.copy(roomPosition);
+                
+                levelModel.traverse(obj => {
+                    if (obj.isMesh) {
+                        obj.castShadow = true;
+                        obj.receiveShadow = true;
+                        obj.userData.staticCollision = true;
+                        
+                        // Mark ground meshes for proper collision handling
+                        if (obj.name.toLowerCase().includes('ground') || obj.name.toLowerCase().includes('floor')) {
+                            obj.userData.isGround = true;
+                        }
+                        
+                        if (obj.geometry && obj.geometry.computeBoundsTree) {
+                            deferComputeBoundsTree(obj.geometry);
+                        }
+                    }
+                });
+                scene.add(levelModel);
+                
+                // CRITICAL: Update world matrices immediately for proper collision detection
+                try { 
+                    levelModel.updateMatrixWorld(true); 
+                    scene.updateMatrixWorld(true);
+                } catch (e) {
+                    console.warn('Matrix update warning:', e);
+                }
+                
+                // Add collidables after matrix update
+                levelModel.traverse(obj => {
+                    if (obj.isMesh && obj.userData.staticCollision) {
+                        collidables.push(obj);
+                        console.log('Added collidable:', obj.name || 'unnamed mesh');
+                    }
+                });
+                
+                updateLoader();
+                resolve(levelModel);
+            },
+            undefined,
+            err => {
+                console.warn('Could not load level model:', err);
+                updateLoader();
+                resolve();
+            }
+        );
+    });
+
+    // WAIT FOR LEVEL GEOMETRY TO LOAD BEFORE PLAYER
+    const levelModel = await levelModelPromise;
+
+    // NEW: Create a simple ground plane at the correct height to ensure player stays on ground
+    const groundPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(200, 200),
+        new THREE.MeshBasicMaterial({ 
+            color: 0x00ff00, 
+            transparent: true, 
+            opacity: 0.3,
+            visible: false // Make invisible but still functional for collisions
+        })
+    );
+    groundPlane.rotation.x = -Math.PI / 2;
+    groundPlane.position.y = 0.05; // Match enemy ground height
+    groundPlane.name = 'ground_plane';
+    groundPlane.userData.staticCollision = true;
+    groundPlane.userData.isGround = true;
+    scene.add(groundPlane);
+    collidables.push(groundPlane);
+
+    // Debug: Add spawn marker to visualize spawn position
+    const spawnMarker = new THREE.Mesh(
+        new THREE.SphereGeometry(0.5),
+        new THREE.MeshBasicMaterial({ color: 0xff0000, transparent: true, opacity: 0.7 })
+    );
+    spawnMarker.position.copy(playerSpawn);
+    scene.add(spawnMarker);
+
 
     //  Player
     let model;
