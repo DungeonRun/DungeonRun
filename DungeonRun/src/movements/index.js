@@ -238,7 +238,7 @@ async function loadLevel(levelLoader, levelName = '') {
     loader = new Loader(scene, camera, renderer, levelName);
     loader.show();
 
-    // ⚠️ CLEANUP BEFORE LOADING NEW LEVEL ⚠️
+    //  CLEANUP BEFORE LOADING NEW LEVEL 
     cleanupCurrentLevel();
     clearScene();
 
@@ -597,7 +597,7 @@ function togglePause() {
     if (isPaused) {
         Object.keys(keysPressed).forEach(k => keysPressed[k] = false);
         if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) document.exitPointerLock();
-        gameTimer.stop(); // ⏸️ Stop timer on pause
+        gameTimer.stop(); //  Stop timer on pause
 
         pauseMenuUI.show(
             () => {
@@ -691,6 +691,7 @@ function animate() {
             }
         }
 
+        // Death animation on health <= 0
         // Death animation on health <= 0
         if (characterControls.health <= 0 && !isGameOver) {
             try {
@@ -901,7 +902,7 @@ function animate() {
 async function switchLevel() {
     console.log(`Switching from Level ${currentLevel}...`);
 
-    // ⚠️ CLEANUP BEFORE SWITCHING LEVEL ⚠️
+    //  CLEANUP BEFORE SWITCHING LEVEL 
     cleanupCurrentLevel();
     
     currentLevel = currentLevel === 1 ? 2 : currentLevel === 2 ? 3 : 1;
