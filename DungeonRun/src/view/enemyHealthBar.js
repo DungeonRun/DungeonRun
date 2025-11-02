@@ -75,20 +75,9 @@ export class EnemyHealthBar {
         this.group.position.copy(this.parent.position);
         this.group.position.y += this.offsetY;
 
-        // Always face the camera - FIXED: Use camera's world position and lookAt
-        const cameraPosition = new THREE.Vector3();
-        camera.getWorldPosition(cameraPosition);
-        
-        // Make health bar look at camera while keeping it upright
-        this.group.lookAt(cameraPosition);
-        
-        // Ensure health bar stays upright (only rotate around Y axis)
-        // This prevents the health bar from tilting when camera moves vertically
-        const euler = new THREE.Euler();
-        euler.setFromQuaternion(this.group.quaternion);
-        euler.x = 0; // Lock X rotation
-        euler.z = 0; // Lock Z rotation
-        this.group.quaternion.setFromEuler(euler);
+        // Always face the camera - IMPROVED: Use camera's world matrix directly
+        // This works regardless of whether camera is in first-person or third-person mode
+        this.group.lookAt(camera.getWorldPosition(new THREE.Vector3()));
     }
 
     remove() {
