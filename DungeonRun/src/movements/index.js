@@ -51,17 +51,17 @@ const SPELL_COOLDOWN = 7.0;
 // Attack hitbox configuration (adjust to fit animations)
 const ATTACK_CONFIG = {
     punch: {
-        delay: 0.12, // seconds after animation start when hit registers
+        delay: 0.1, // seconds after animation start when hit registers
         duration: 0.4, // seconds the hitbox remains active/visible
         distance: -1.0, // forward distance from player origin
         size: new THREE.Vector3(1.0, 3.0, 1.2), // w,h,d
         damage: 8
     },
     sword: {
-        delay: 0.4,
+        delay: 1.0,
         duration: 0.22,
         distance: -1.3,
-        size: new THREE.Vector3(3.4, 3.4, 3.0),
+        size: new THREE.Vector3(3.4, 3.4, 3.4),
         damage: 25
     }
 };

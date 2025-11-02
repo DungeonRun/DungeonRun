@@ -428,7 +428,7 @@ export async function loadDemoLevel({
     });
 
     //  Key
-    const keyPosition = new THREE.Vector3(-7, 0.15, -16);
+    const keyPosition = new THREE.Vector3(-7, 0.2, -16);
     const keyLoadPromise = addGlowingKey(scene, keyPosition).then(({ animator, key }) => {
         key.visible = false;
         if (onKeyLoaded) onKeyLoaded({ animator, key });
