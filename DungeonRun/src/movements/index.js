@@ -15,6 +15,8 @@ import { EnemyCountUI } from '../view/enemyCountUI.js';
 import KillParticleManager from '../particles/killParticles.js';
 import DisposalManager from '../utils/disposalManager.js';
 import { soundManager } from '../sounds/soundManger.js';
+import { FirstPersonCamera } from '../view/firstPersonCamera.js';
+import { CameraViewToggleUI } from '../view/cameraViewToggleUI.js';
 
 // Scene setup
 const scene = new THREE.Scene();
@@ -76,6 +78,11 @@ let gameTimer = null;
 // Camera setup
 const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
 camera.position.set(0, 5, 5);
+
+// Camera system
+let isFirstPersonMode = false;
+let firstPersonCamera = null;
+let cameraViewToggleUI = null;
 
 // Renderer setup
 const canvas = document.querySelector('#gameCanvas');
@@ -168,6 +175,17 @@ function clearScene() {
         playerHealthBar.remove();
         playerHealthBar = null;
     }
+
+    // Add to clearScene():
+    if (firstPersonCamera) {
+      firstPersonCamera.cleanup();
+      firstPersonCamera = null;
+    }
+    if (cameraViewToggleUI) {
+      cameraViewToggleUI.remove();
+      cameraViewToggleUI = null;
+    }
+    isFirstPersonMode = false;
 
     if (gameOverUI) gameOverUI.remove();
     if (gameTimer) gameTimer.remove();
@@ -276,6 +294,8 @@ async function loadLevel(levelLoader, levelName = '') {
     //keyDisplay = new KeyDisplay();
     // enemies left UI
     enemyCountUI = new EnemyCountUI({ count: enemies.length });
+    // Initialize camera toggle UI
+    cameraViewToggleUI = new CameraViewToggleUI();
 }
 
 function playMusicForLevel(level) {
@@ -289,6 +309,7 @@ function playMusicForLevel(level) {
         console.warn('playMusicForLevel error', e);
     }
 }
+
 
 // === Keyboard Controls ===
 const keysPressed = {};
@@ -353,6 +374,12 @@ document.addEventListener('keydown', (event) => {
     if (firstPress && event.code === 'KeyP') {
         debugMode = !debugMode;
         updateDebugHelpers();
+    }
+    // Toggle camera mode - Y key
+   if (firstPress && event.code === 'KeyY') {
+        event.preventDefault();
+        toggleCameraMode();
+       return;
     }
 }, false);
 
@@ -570,6 +597,67 @@ function togglePause() {
     }
 }
 
+async function toggleCameraMode() {
+    if (!characterControls || !characterControls.model) return;
+    
+    isFirstPersonMode = !isFirstPersonMode;
+    
+    if (isFirstPersonMode) {
+        // Switch to first person
+        if (thirdPersonCamera) {
+            thirdPersonCamera.cleanup();
+        }
+        
+        firstPersonCamera = new FirstPersonCamera({
+            camera: camera,
+            target: characterControls.model,
+            scene: scene
+        });
+        
+        // Update character controls to use first person camera
+        if (characterControls) {
+            characterControls.setActiveCamera(firstPersonCamera);
+        }
+        
+        // Hide player model in first person
+        if (characterControls.model) {
+            characterControls.model.visible = false;
+        }
+        
+    } else {
+        // Switch to third person
+        if (firstPersonCamera) {
+            firstPersonCamera.cleanup();
+            firstPersonCamera = null;
+        }
+        
+        // Re-import and create third person camera
+        const { ThirdPersonCamera } = await import('../view/thirdPersonCamera.js');
+        thirdPersonCamera = new ThirdPersonCamera({
+            camera: camera,
+            target: characterControls.model,
+            scene: scene
+        });
+        
+        // Update character controls to use third person camera
+        if (characterControls) {
+            characterControls.setActiveCamera(thirdPersonCamera);
+        }
+        
+        // Show player model in third person
+        if (characterControls.model) {
+            characterControls.model.visible = true;
+        }
+    }
+    
+    // Update UI
+    if (cameraViewToggleUI) {
+        cameraViewToggleUI.toggle();
+    }
+    
+    console.log(`Camera mode: ${isFirstPersonMode ? 'First Person' : 'Third Person'}`);
+}
+
 // === Main Game Loop ===
 const clock = new THREE.Clock();
 function animate() {
@@ -586,6 +674,12 @@ function animate() {
     if (!isPaused) {
         if (characterControls) {
             characterControls.update(delta, keysPressed);
+            // In characterControls.update(), when calculating camera forward/right:
+            const activeCamera = isFirstPersonMode ? firstPersonCamera : thirdPersonCamera;
+            if (activeCamera) {
+                const cameraForward = activeCamera.GetForwardVector();
+                const cameraRight = activeCamera.GetRightVector();
+            }
         }
 
         // Death animation on health <= 0
@@ -779,9 +873,12 @@ function animate() {
     // process staged disposals (a few objects per frame)
     try { disposalManager.update(); } catch (e) {}
 
-        if (thirdPersonCamera) {
-            thirdPersonCamera.Update(delta);
-        }
+       // Replace the existing thirdPersonCamera update with:
+      if (isFirstPersonMode && firstPersonCamera) {
+        firstPersonCamera.Update(delta);
+      } else if (thirdPersonCamera) {
+        thirdPersonCamera.Update(delta);
+      }
 
         if (playerHealthBar && characterControls) {
             playerHealthBar.setHealth(characterControls.health);

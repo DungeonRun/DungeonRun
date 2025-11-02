@@ -67,7 +67,7 @@ export class PauseMenuUI {
                 font-size: 1.2em; 
                 opacity: 0.7;
                 text-shadow: 0 0 5px rgba(255, 69, 0, 0.5);
-            ">Press m to resume</p>
+            ">Press M to resume</p>
         `;
 
         // Add CSS animation for title glow
