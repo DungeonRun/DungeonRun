@@ -1179,4 +1179,5 @@ window.addEventListener('resize', onWindowResize);
 
 // === Initialize ===
 loadLevel(loadDemoLevel, 'LEVEL 1');
+//loadLevel(loadLevel2, 'LEVEL 2');
 animate();

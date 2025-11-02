@@ -146,7 +146,7 @@ export async function loadLevel2({
                             obj.userData.isGround = true;
                         }
                         
-                        if (obj.geometry && obj.geometry.computeBoundsTree) {
+                        if (true || obj.geometry && obj.geometry.computeBoundsTree) {
                             deferComputeBoundsTree(obj.geometry);
                         }
                     }
