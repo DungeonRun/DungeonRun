@@ -763,56 +763,56 @@ function animate() {
                 });
             }
 
-        // batch enemy removals to avoid single-frame spikes
+        // Batch enemy removals to avoid single-frame spikes
         for (let i = enemies.length - 1; i >= 0; i--) {
             const enemy = enemies[i];
             if (enemy.health <= 0) {
+                if (enemy.healthBar) {enemy.healthBar.remove();}
                 removalQueue.push(enemy);
                 enemies.splice(i, 1);
             }
         }
-        // process up to 2 removals per frame, but stagger heavy disposal via DisposalManager
+
+        // Process removals more efficiently - limit to 1 per frame during heavy combat
         let removalsThisFrame = 0;
-        while (removalQueue.length > 0 && removalsThisFrame < 2) {
+        const MAX_REMOVALS_PER_FRAME = enemies.length > 5 ? 1 : 3; // Be more conservative when many enemies are dying
+
+        while (removalQueue.length > 0 && removalsThisFrame < MAX_REMOVALS_PER_FRAME) {
             const enemy = removalQueue.shift();
-            try {
-                // spawn small kill particle burst before removing visual model
-                try {
-                        if (enemy && enemy.enemyModel) {
-                        // spawn death particles slightly above the model and use stronger upward spread
-                        const pos = enemy.enemyModel.position.clone();
-                        killParticleManager.spawn(pos, { count: 24, offsetY: 1.0, upwardSpread: 2.0 });
-                    }
-                } catch (e) {}
-
-                // Immediately make model invisible and non-interactive
-                try {
-                    if (enemy && enemy.enemyModel) {
-                        enemy.enemyModel.visible = false;
-                        // stop animations if any
-                        if (enemy.mixer && typeof enemy.mixer.stopAllAction === 'function') {
-                            try { enemy.mixer.stopAllAction(); } catch (e) {}
-                        }
-                        // Queue for staged disposal to avoid spikes
-                        try { disposalManager.enqueue(enemy.enemyModel); } catch (e) { try { if (enemy.enemyModel.parent) enemy.enemyModel.parent.remove(enemy.enemyModel); } catch (e) {} }
-                    }
-                } catch (e) {}
-
-                // remove healthbar immediately (UI element)
-                try { if (enemy.healthBar) enemy.healthBar.remove(); } catch (e) {}
-
-                // debug helper remove or queue
-                try {
-                    if (enemy.debugHelper) {
-                        try { scene.remove(enemy.debugHelper); } catch (e) {}
-                        // debugHelper likely small; attempt disposal
-                        try { disposalManager.enqueue(enemy.debugHelper); } catch (e) {}
-                        enemy.debugHelper = null;
-                    }
-                } catch (e) {}
-
-            } catch (e) { console.warn('Error removing enemy:', e); }
+            if (!enemy) continue;
+            
             removalsThisFrame++;
+            
+            // Use the cleanup method if available
+            if (enemy.cleanup && typeof enemy.cleanup === 'function') {
+                enemy.cleanup();
+            } else {
+                // Fallback to manual cleanup
+                if (enemy.enemyModel) {
+                    enemy.enemyModel.visible = false;
+                    if (enemy.enemyModel.parent) {
+                        enemy.enemyModel.parent.remove(enemy.enemyModel);
+                    }
+                }
+                
+            }
+            
+            // Schedule particles for next frame
+            setTimeout(() => {
+                if (enemy.enemyModel) {
+                    const pos = enemy.enemyModel.position.clone();
+                    killParticleManager.spawn(pos, { 
+                        count: 12, 
+                        offsetY: 0.5, 
+                        upwardSpread: 1.5 
+                    });
+                }
+            }, 0);
+            
+            // Queue for disposal
+            if (enemy.enemyModel) {
+                disposalManager.enqueue(enemy.enemyModel);
+            }
         }
 
         if (keyAnimator) keyAnimator();

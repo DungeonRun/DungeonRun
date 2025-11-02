@@ -337,4 +337,37 @@ export class EnemyMovement {
       this.spotlight.target.updateMatrixWorld();
     }
   }
+
+  cleanup() {
+    // Stop animations and clean up mixer
+    if (this.mixer) {
+        try {
+            this.mixer.stopAllAction();
+            this.mixer.uncacheRoot(this.enemyModel);
+        } catch (e) { /* Ignore */ }
+    }
+    
+    // Remove from scene
+    if (this.enemyModel && this.enemyModel.parent) {
+        this.enemyModel.parent.remove(this.enemyModel);
+    }
+    
+    // Remove spotlight
+    if (this.spotlight) {
+        if (this.spotlight.parent) {
+            this.spotlight.parent.remove(this.spotlight);
+        }
+        if (this.spotlight.target && this.spotlight.target.parent) {
+            this.spotlight.target.parent.remove(this.spotlight.target);
+        }
+    }
+    
+    // Clear all references
+    this.enemyModel = null;
+    this.mixer = null;
+    this.animationsMap.clear();
+    this.spotlight = null;
+    this.healthBar = null;
+    this.player = null;
+  }
 }
