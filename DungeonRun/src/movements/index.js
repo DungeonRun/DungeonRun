@@ -238,7 +238,7 @@ async function loadLevel(levelLoader, levelName = '') {
     loader = new Loader(scene, camera, renderer, levelName);
     loader.show();
 
-    // ⚠️ CLEANUP BEFORE LOADING NEW LEVEL ⚠️
+    //  CLEANUP BEFORE LOADING NEW LEVEL 
     cleanupCurrentLevel();
     clearScene();
 
@@ -597,18 +597,18 @@ function togglePause() {
     if (isPaused) {
         Object.keys(keysPressed).forEach(k => keysPressed[k] = false);
         if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) document.exitPointerLock();
-        gameTimer.stop(); // ⏸️ Stop timer on pause
+        gameTimer.stop(); //  Stop timer on pause
 
         pauseMenuUI.show(
             () => {
                 isPaused = false;
-                gameTimer.start(); // ▶️ Resume timer on continue
+                gameTimer.start(); //  Resume timer on continue
             },
             () => {
                 isPaused = false;
                 isGameOver = false;
                 window._levelSwitched = false;
-                // ⚠️ CLEANUP BEFORE RESTARTING LEVEL ⚠️
+                //  CLEANUP BEFORE RESTARTING LEVEL 
                 cleanupCurrentLevel();
                 let levelToLoad = currentLevel === 2 ? loadLevel2 : currentLevel === 3 ? loadLevel3 : loadDemoLevel;
                 loadLevel(levelToLoad);
@@ -697,49 +697,60 @@ function animate() {
         }
 
         // Death animation on health <= 0
-        if (characterControls.health <= 0 && !isGameOver) {
-                // Play death animation and then immediately show Game Over (avoid waiting for callbacks)
-                        try {
-                            try { characterControls.playDeath(); } catch (e) {}
-                            // mark game over state to avoid re-triggering
-                            isGameOver = true;
+        // Death animation on health <= 0
+if (characterControls.health <= 0 && !isGameOver) {
+    // Play death animation and then immediately show Game Over (avoid waiting for callbacks)
+    try {
+        try { characterControls.playDeath(); } catch (e) {}
+        // mark game over state to avoid re-triggering
+        isGameOver = true;
 
-                            if (gameTimer) gameTimer.stop();
-                            if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
-                                document.exitPointerLock();
-                            }
-
-                            // Stop music immediately when player dies and then show Game Over shortly after.
-                            try { stopAllMusicAndFlushDisposals(); } catch (e) {}
-                            // We avoid relying on callbacks that may be missing; 1200ms is a reasonable default.
-                            setTimeout(() => {
-                                try {
-                                    gameOverUI.show(async () => {
-                                        // ensure any active loader is hidden before restarting
-                                        try { if (loader) loader.hide(); } catch (e) {}
-                                        try { stopAllMusicAndFlushDisposals(); } catch (e) {}
-                                        cleanupCurrentLevel();
-                                        await loadLevel(loadDemoLevel);
-                                    });
-                                } catch (e) { console.warn('Error showing gameOverUI', e); }
-                            }, 1200);
-
-                        } catch (e) {
-                            // fallback behaviour: ensure game over still shows
-                            isGameOver = true;
-                            if (gameTimer) gameTimer.stop();
-                                try {
-                                    // ensure music stopped before showing Game Over
-                                    try { stopAllMusicAndFlushDisposals(); } catch (e) {}
-                                    gameOverUI.show(async () => {
-                                        try { if (loader) loader.hide(); } catch (e) {}
-                                        try { stopAllMusicAndFlushDisposals(); } catch (e) {}
-                                        cleanupCurrentLevel();
-                                        await loadLevel(loadDemoLevel);
-                                    });
-                                } catch (e) {}
-                        }
+        if (gameTimer) gameTimer.stop();
+        if (thirdPersonCamera && thirdPersonCamera.IsMouseLocked()) {
+            document.exitPointerLock();
         }
+
+        // Stop music immediately when player dies and then show Game Over shortly after.
+        try { stopAllMusicAndFlushDisposals(); } catch (e) {}
+        // We avoid relying on callbacks that may be missing; 1200ms is a reasonable default.
+        setTimeout(() => {
+            try {
+                // FIX: Get the correct level loader based on currentLevel (same logic as pause menu)
+                const levelToLoad = currentLevel === 1 ? loadDemoLevel : 
+                                  currentLevel === 2 ? loadLevel2 : 
+                                  loadLevel3;
+                
+                gameOverUI.show(async () => {
+                    // ensure any active loader is hidden before restarting
+                    try { if (loader) loader.hide(); } catch (e) {}
+                    try { stopAllMusicAndFlushDisposals(); } catch (e) {}
+                    cleanupCurrentLevel();
+                    await loadLevel(levelToLoad);
+                });
+            } catch (e) { console.warn('Error showing gameOverUI', e); }
+        }, 1200);
+
+    } catch (e) {
+        // fallback behaviour: ensure game over still shows
+        isGameOver = true;
+        if (gameTimer) gameTimer.stop();
+        try {
+            // ensure music stopped before showing Game Over
+            try { stopAllMusicAndFlushDisposals(); } catch (e) {}
+            // FIX: Get the correct level loader based on currentLevel (same logic as pause menu)
+            const levelToLoad = currentLevel === 1 ? loadDemoLevel : 
+                              currentLevel === 2 ? loadLevel2 : 
+                              loadLevel3;
+            
+            gameOverUI.show(async () => {
+                try { if (loader) loader.hide(); } catch (e) {}
+                try { stopAllMusicAndFlushDisposals(); } catch (e) {}
+                cleanupCurrentLevel();
+                await loadLevel(levelToLoad);
+            });
+        } catch (e) {}
+    }
+}
     }
 
         ChestController.update(delta);
@@ -917,7 +928,7 @@ function animate() {
 async function switchLevel() {
     console.log(`Switching from Level ${currentLevel}...`);
 
-    // ⚠️ CLEANUP BEFORE SWITCHING LEVEL ⚠️
+    //  CLEANUP BEFORE SWITCHING LEVEL 
     cleanupCurrentLevel();
     
     currentLevel = currentLevel === 1 ? 2 : currentLevel === 2 ? 3 : 1;
