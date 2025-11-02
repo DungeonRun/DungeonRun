@@ -444,6 +444,21 @@ class CharacterControls {
         }
     }
 
+    // Get attack direction based on camera mode
+    getAttackDirection() {
+        if (this.isFirstPersonMode && this.activeCamera) {
+            // FIRST PERSON: Attack in the direction the camera is looking
+            return this.activeCamera.GetForwardVector();
+        } else {
+            // THIRD PERSON: Attack in the direction the character is facing
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(this.model.quaternion);
+            forward.y = 0;
+            forward.normalize();
+            return forward;
+        }
+    }
+
     directionOffset(keysPressed) {
         let directionOffset = 0;
 
