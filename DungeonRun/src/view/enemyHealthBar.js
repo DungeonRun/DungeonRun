@@ -18,7 +18,6 @@ export class EnemyHealthBar {
         // Place bar above the model
         this.offsetY = bbox.max.y - parent.position.y + (this.height * 0.2);
 
-
         // Create background (grey)
         const bgGeometry = new THREE.PlaneGeometry(this.width, this.height);
         const bgMaterial = new THREE.MeshBasicMaterial({ color: 0x222222, transparent: true, opacity: 0.7, depthTest: false });
@@ -56,6 +55,7 @@ export class EnemyHealthBar {
 
     update(camera) {
         if (!this.group || !this.parent) return;
+        
         // Rudimentary culling: skip updating / hide when far from camera
         try {
             const camPos = new THREE.Vector3();
@@ -75,8 +75,20 @@ export class EnemyHealthBar {
         this.group.position.copy(this.parent.position);
         this.group.position.y += this.offsetY;
 
-        // Always face the camera
-        this.group.quaternion.copy(camera.quaternion);
+        // Always face the camera - FIXED: Use camera's world position and lookAt
+        const cameraPosition = new THREE.Vector3();
+        camera.getWorldPosition(cameraPosition);
+        
+        // Make health bar look at camera while keeping it upright
+        this.group.lookAt(cameraPosition);
+        
+        // Ensure health bar stays upright (only rotate around Y axis)
+        // This prevents the health bar from tilting when camera moves vertically
+        const euler = new THREE.Euler();
+        euler.setFromQuaternion(this.group.quaternion);
+        euler.x = 0; // Lock X rotation
+        euler.z = 0; // Lock Z rotation
+        this.group.quaternion.setFromEuler(euler);
     }
 
     remove() {

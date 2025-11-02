@@ -12,8 +12,10 @@ class CharacterControls {
         this.thirdPersonCamera = thirdPersonCamera;
         this.activeCamera = thirdPersonCamera; // Support both camera types
         this.currentAction = currentAction;
-    // walking is default; run only when Shift is held
-    this.toggleRun = false;
+        this.isFirstPersonMode = false;
+        
+        // walking is default; run only when Shift is held
+        this.toggleRun = false;
         this.walkDirection = new THREE.Vector3();
         this.rotateAngle = new THREE.Vector3(0, 1, 0);
         this.rotateQuarternion = new THREE.Quaternion();
@@ -23,29 +25,29 @@ class CharacterControls {
         this.rotationSpeed = 0.25; // Smooth rotation speed
         this.collidables = collidables;
 
-    // physics helpers
-    this.raycaster = new THREE.Raycaster();
-    this.stepHeight = 0.45; // max step up the player can climb
-    this.velocityY = 0; // vertical speed for gravity
-    this.gravity = -30; // gravity (tweak as needed)
-    this.groundOffset = 0.05; // keep player slightly above ground
-    this.capsule = { radius: 0.5, height: 1.6 };
-    // death plane: if the player falls below deathY, reset Y to spawnY
-    this.deathY = -10;
-    this.spawnY = 2;
-    // store last collision info for debugging
-    this.lastCollision = null;
-    this.lastCollisionMesh = null;
-    this.collisionPush = new THREE.Vector3();
-    // jump / vertical physics
-    this.isJumping = false;
-    this.jumpSpeed = 12.0; // initial upward velocity when jumping
-    // ascending (smooth initial displacement) before gravity takes over
-    this.isAscending = false;
-    this.ascendElapsed = 0;
-    this.ascendDuration = 0.18; // seconds for the smooth upward displacement
-    this.ascendHeight = 1.2; // how high the smooth ascent moves the player before gravity
-    this.ascendingStartY = 0;
+        // physics helpers
+        this.raycaster = new THREE.Raycaster();
+        this.stepHeight = 0.45; // max step up the player can climb
+        this.velocityY = 0; // vertical speed for gravity
+        this.gravity = -30; // gravity (tweak as needed)
+        this.groundOffset = 0.05; // keep player slightly above ground
+        this.capsule = { radius: 0.5, height: 1.6 };
+        // death plane: if the player falls below deathY, reset Y to spawnY
+        this.deathY = -10;
+        this.spawnY = 2;
+        // store last collision info for debugging
+        this.lastCollision = null;
+        this.lastCollisionMesh = null;
+        this.collisionPush = new THREE.Vector3();
+        // jump / vertical physics
+        this.isJumping = false;
+        this.jumpSpeed = 12.0; // initial upward velocity when jumping
+        // ascending (smooth initial displacement) before gravity takes over
+        this.isAscending = false;
+        this.ascendElapsed = 0;
+        this.ascendDuration = 0.18; // seconds for the smooth upward displacement
+        this.ascendHeight = 1.2; // how high the smooth ascent moves the player before gravity
+        this.ascendingStartY = 0;
 
         this.health = 100;
 
@@ -128,22 +130,6 @@ class CharacterControls {
         this.toggleRun = !this.toggleRun; // unused function now
     }
 
-    /*
-    willCollide(nextPosition) {
-        const box = new THREE.Box3().setFromObject(this.model);
-        const delta = nextPosition.clone().sub(this.model.position);
-        box.translate(delta);
-
-        for (const mesh of this.collidables) {
-            if (boxIntersectsMeshBVH(box, mesh)) {
-                return true;
-            }
-        }
-        return false;
-    }
-    */
-
-
     willCollide(nextPosition) {
         // approximate player as an axis-aligned box centered at nextPosition
         const half = new THREE.Vector3(this.capsule.radius, this.capsule.height / 2, this.capsule.radius);
@@ -170,18 +156,18 @@ class CharacterControls {
 
             // room interior/backside-only meshes should not block; if material indicates BackSide, skip
             try {
-                    if (mesh.material && mesh.material.side === THREE.BackSide) continue;
+                if (mesh.material && mesh.material.side === THREE.BackSide) continue;
             } catch (e) {}
 
-                // Explicitly ignore ground planes/meshes: ground is handled by raycasts in _sampleGroundHeight
-                try {
-                    if (mesh.name && mesh.name.toLowerCase().includes('ground')) {
-                        continue;
-                    }
-                    if (mesh.userData && (mesh.userData.isGround || mesh.userData.ground)) {
-                        continue;
-                    }
-                } catch (e) {}
+            // Explicitly ignore ground planes/meshes: ground is handled by raycasts in _sampleGroundHeight
+            try {
+                if (mesh.name && mesh.name.toLowerCase().includes('ground')) {
+                    continue;
+                }
+                if (mesh.userData && (mesh.userData.isGround || mesh.userData.ground)) {
+                    continue;
+                }
+            } catch (e) {}
 
             // If mesh is a large static mesh and has BVH available, prefer triangle-level (BVH) test
             if (mesh.userData && mesh.userData.staticCollision && mesh.geometry.boundsTree) {
@@ -350,42 +336,74 @@ class CharacterControls {
         }
 
         if (this.currentAction === 'Run' || this.currentAction === 'Walk') {
-             let moveDirection = new THREE.Vector3(0, 0, 0);
+            let moveDirection = new THREE.Vector3(0, 0, 0);
             
             // Use activeCamera (supports both first and third person)
-            const activeCamera = this.activeCamera || this.thirdPersonCamera;
+            const activeCamera = this.activeCamera;
             if (!activeCamera) return;
             
-            // Get camera forward and right vectors using the camera's methods
-            const cameraForward = activeCamera.GetForwardVector();
-            const cameraRight = activeCamera.GetRightVector();
+            if (this.isFirstPersonMode) {
+                // FIRST PERSON: Movement is directly tied to camera direction
+                const cameraForward = activeCamera.GetForwardVector();
+                const cameraRight = activeCamera.GetRightVector();
 
-            if (keysPressed[UP]) {
-                moveDirection.add(cameraForward);
-            }
-            if (keysPressed[DOWN]) {
-                moveDirection.sub(cameraForward);
-            }
-            if (keysPressed[LEFT]) {
-                moveDirection.sub(cameraRight);
-            }
-            if (keysPressed[RIGHT]) {
-                moveDirection.add(cameraRight);
+                if (keysPressed[UP]) {
+                    moveDirection.add(cameraForward);
+                }
+                if (keysPressed[DOWN]) {
+                    moveDirection.sub(cameraForward);
+                }
+                if (keysPressed[LEFT]) {
+                    moveDirection.sub(cameraRight);
+                }
+                if (keysPressed[RIGHT]) {
+                    moveDirection.add(cameraRight);
+                }
+                
+                // In first person, character rotation follows camera automatically
+                this.model.rotation.y = activeCamera.GetAngles().azimuthal;
+                
+            } else {
+                // THIRD PERSON: Original schema - independent aiming and walking
+                const cameraWorldPos = activeCamera._camera.getWorldPosition(new THREE.Vector3());
+                const playerPos = this.model.position.clone();
+                const cameraForward = new THREE.Vector3();
+                cameraForward.subVectors(playerPos, cameraWorldPos);
+                cameraForward.y = 0;
+                cameraForward.normalize();
+                const cameraRight = new THREE.Vector3();
+                cameraRight.crossVectors(cameraForward, new THREE.Vector3(0, 1, 0));
+                cameraRight.normalize();
+
+                if (keysPressed[UP]) {
+                    moveDirection.add(cameraForward);
+                }
+                if (keysPressed[DOWN]) {
+                    moveDirection.sub(cameraForward);
+                }
+                if (keysPressed[LEFT]) {
+                    moveDirection.sub(cameraRight);
+                }
+                if (keysPressed[RIGHT]) {
+                    moveDirection.add(cameraRight);
+                }
+
+                if (moveDirection.length() > 0) {
+                    moveDirection.normalize();
+                    const angle = Math.atan2(moveDirection.x, moveDirection.z);
+                    this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
+                    this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);
+                }
             }
 
             if (moveDirection.length() > 0) {
                 moveDirection.normalize();
-                const angle = Math.atan2(moveDirection.x, moveDirection.z);
-                this.rotateQuarternion.setFromAxisAngle(this.rotateAngle, angle);
-                this.model.quaternion.rotateTowards(this.rotateQuarternion, this.rotationSpeed);
-
                 const velocity = this.currentAction === 'Run' ? this.runVelocity : this.walkVelocity;
                 const moveX = moveDirection.x * velocity * delta;
                 const moveZ = moveDirection.z * velocity * delta;
                 const nextPosition = this.model.position.clone().add(new THREE.Vector3(moveX, 0, moveZ));
 
                 // Check for collisions and step handling using ground raycasts
-                //console.log(this.willCollide(nextPosition))
                 if (!this.willCollide(nextPosition)) {
                     // sample ground height at current and next position
                     const groundAtCurrent = this._sampleGroundHeight(this.model.position);
@@ -463,29 +481,37 @@ class CharacterControls {
         }
         return null;
     }
+    
     resetAnimation() {
-    if (!this.mixer || !this.animationsMap) return;
+        if (!this.mixer || !this.animationsMap) return;
 
-    // Stop all active animations
-    this.mixer.stopAllAction();
+        // Stop all active animations
+        this.mixer.stopAllAction();
 
-    // Reset to idle if available
-    const idle = this.animationsMap.get('Idle');
-    if (idle) {
-        idle.reset().fadeIn(this.fadeDuration).play();
-        this.currentAction = 'Idle';
+        // Reset to idle if available
+        const idle = this.animationsMap.get('Idle');
+        if (idle) {
+            idle.reset().fadeIn(this.fadeDuration).play();
+            this.currentAction = 'Idle';
+        }
+
+        console.log("CharacterControls: Animation reset to Idle"); //so that animations on previous level stop
     }
-
-    console.log("CharacterControls: Animation reset to Idle"); //so that animations on previous level stop
-}
-   // Method to update the active camera reference
-    setActiveCamera(camera) {
+    
+    // Method to update the active camera reference and mode
+    setActiveCamera(camera, isFirstPerson = false) {
         this.activeCamera = camera;
+        this.isFirstPersonMode = isFirstPerson;
+        
+        // Show/hide player model based on camera mode
+        if (this.model) {
+            this.model.visible = !isFirstPerson;
+        }
+        
         if (!this.thirdPersonCamera) {
             this.thirdPersonCamera = camera; // Maintain compatibility
         }
     }
-
 }
 
 export { CharacterControls };
