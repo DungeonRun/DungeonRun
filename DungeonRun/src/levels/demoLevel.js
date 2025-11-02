@@ -51,82 +51,34 @@ export async function loadDemoLevel({
     dirLight.shadow.mapSize.width = 4096;
     dirLight.shadow.mapSize.height = 4096;
     scene.add(dirLight);
-
     //  Background Music - Use sound manager
     const level1Music = soundManager.playLevelMusic('../sounds/level1.mp3');
     
     // Store reference in scene for cleanup if needed
     scene.userData.levelMusic = level1Music;
 
-    //  Floor
-    const textureLoader = new THREE.TextureLoader();
-    const [sandBaseColor, sandNormalMap, sandHeightMap, sandAmbientOcclusion] = await Promise.all([
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_COLOR.jpg'),
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_NRM.jpg'),
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_DISP.jpg'),
-        textureLoader.loadAsync('../../src/textures/sand/Sand 002_OCC.jpg')
-    ]);
-
-    const WIDTH = 80, LENGTH = 80;
-    const geometry = new THREE.PlaneGeometry(WIDTH, LENGTH, 100, 100);
-    const material = new THREE.MeshStandardMaterial({
-        map: sandBaseColor,
-        normalMap: sandNormalMap,
-        displacementMap: sandHeightMap,
-        displacementScale: 0.05,
-        aoMap: sandAmbientOcclusion,
-        roughness: 0.7,
-        metalness: 0.0,
-        color: 0x000000,
-        emissive: 0x332200,
-        emissiveIntensity: 0.1
-    });
-
-    [material.map, material.normalMap, material.displacementMap, material.aoMap].forEach(map => {
-        map.wrapS = map.wrapT = THREE.RepeatWrapping;
-        map.repeat.set(8, 8);
-        map.anisotropy = renderer.capabilities.getMaxAnisotropy();
-    });
-
-    const floor = new THREE.Mesh(geometry, material);
-    floor.receiveShadow = true;
-    floor.rotation.x = -Math.PI / 2;
-    scene.add(floor);
-    // include floor in collidables so player/enemies raycasts and collisions consider it
-    floor.name = 'ground';
-    if (floor.geometry && floor.geometry.computeBoundsTree) deferComputeBoundsTree(floor.geometry);
-    // mark floor as static collision geometry so BVH-based triangle checks are used
-    floor.userData.staticCollision = true;
-
-    //  Room Cube
-    const size = 30;
-    const roomGeometry = new THREE.BoxGeometry(size, size, size);
-    const roomMaterial = new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        side: THREE.BackSide
-    });
-    const room = new THREE.Mesh(roomGeometry, roomMaterial);
-    room.position.y = size / 2 - 0.05;
-    room.receiveShadow = true;
-    scene.add(room);
+    // Define a small room area in negative coordinates and create invisible boundary walls
+    const size = 6;
 
     const half = size / 2;
+    const roomCenter = new THREE.Vector3(-10, 0, -10);
+    const wallHeight = 6;
     const wallThickness = 0.2;
+
     const wallPlanes = [
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
-        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, size, size), new THREE.MeshBasicMaterial({ visible: false })),
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
-        new THREE.Mesh(new THREE.BoxGeometry(size, size, wallThickness), new THREE.MeshBasicMaterial({ visible: false }))
+        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, size), new THREE.MeshBasicMaterial({ visible: false })),
+        new THREE.Mesh(new THREE.BoxGeometry(wallThickness, wallHeight, size), new THREE.MeshBasicMaterial({ visible: false })),
+        new THREE.Mesh(new THREE.BoxGeometry(size, wallHeight, wallThickness), new THREE.MeshBasicMaterial({ visible: false })),
+        new THREE.Mesh(new THREE.BoxGeometry(size, wallHeight, wallThickness), new THREE.MeshBasicMaterial({ visible: false }))
     ];
 
-    wallPlanes[0].position.set(room.position.x + half, room.position.y, room.position.z);
-    wallPlanes[1].position.set(room.position.x - half, room.position.y, room.position.z);
-    wallPlanes[2].position.set(room.position.x, room.position.y, room.position.z + half);
-    wallPlanes[3].position.set(room.position.x, room.position.y, room.position.z - half);
+    wallPlanes[0].position.set(roomCenter.x + half, wallHeight / 2, roomCenter.z);
+    wallPlanes[1].position.set(roomCenter.x - half, wallHeight / 2, roomCenter.z);
+    wallPlanes[2].position.set(roomCenter.x, wallHeight / 2, roomCenter.z + half);
+    wallPlanes[3].position.set(roomCenter.x, wallHeight / 2, roomCenter.z - half);
 
     wallPlanes.forEach(wall => {
         if (wall.geometry && wall.geometry.computeBoundsTree) deferComputeBoundsTree(wall.geometry);
-        // mark walls as static collision geometry
         wall.userData.staticCollision = true;
         scene.add(wall);
     });
@@ -146,7 +98,7 @@ export async function loadDemoLevel({
         level1.name = 'Level1Room';
         level1.position.copy(roomCenter);
         // REMOVED SCALING - Use room at original Blender size
-        level1.scale.set(0.2, 0.2, 0.2);
+        // level1.scale.set(0.5, 0.5, 0.5);
         
         console.log('\n=== LEVEL1 TEXTURE DEBUG ===');
         level1.traverse((obj) => {
@@ -273,7 +225,7 @@ export async function loadDemoLevel({
     }
 
     // Spawn the player inside the small negative room
-    const playerSpawn = new THREE.Vector3(-89.25*0.2, 1.00*0.2, -22.37*0.2);
+    const playerSpawn = new THREE.Vector3(-89.25, 1.00, -22.37);
 
     // Position enemies inside the small negative room
     const enemyConfigs = [
@@ -283,6 +235,7 @@ export async function loadDemoLevel({
         { pos: new THREE.Vector3(9.344, 0.2, -7.436), type: "boss", modelPath: "/src/animations/enemies/boss.glb" }
     ];
 
+    // Position chests inside the small negative room (near corners but within bounds)
     const chestPositions = [
         new THREE.Vector3(-1.96, 0.2, 4.082),
         new THREE.Vector3(13.044, 0.2, -23.754),
@@ -370,7 +323,8 @@ export async function loadDemoLevel({
     });
 
     //  Key
-    const keyLoadPromise = addGlowingKey(scene).then(({ animator, key }) => {
+    const keyPosition = new THREE.Vector3(73.01, 1.00, -62.46);
+    const keyLoadPromise = addGlowingKey(scene, keyPosition).then(({ animator, key }) => {
         key.visible = false;
         if (onKeyLoaded) onKeyLoaded({ animator, key });
         updateLoader();
@@ -463,12 +417,8 @@ export async function loadDemoLevel({
                     chestCollisionBox.position.copy(position);
                     chestCollisionBox.position.y = 1;
                     chestCollisionBox.name = `chest_collision_${index}`;
-                    // This mesh is used only as a proximity/trigger for opening the chest.
-                    // Do NOT mark it as staticCollision or add it to `collidables` so it doesn't
-                    // participate in the movement collision checks and won't block the player.
                     chestCollisionBox.userData.isChestTrigger = true;
                     scene.add(chestCollisionBox);
-                    // intentionally not added to `collidables`
                     
                     console.log(`Treasure chest ${index + 1} added at position:`, position);
                     updateLoader();

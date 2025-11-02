@@ -51,7 +51,7 @@ export class EnemyMovement {
         this.detectionRange = 18;
         this.attackRange = 3;
         this.attackCooldown = 3;
-        this.scale = 1; // Boss should look big
+        this.scale = 3; // Boss should look big
         this.groundOffset = 0.2;
         this.maxHealth = 100;
         this.attackDamage = 5;
@@ -61,7 +61,7 @@ export class EnemyMovement {
         this.detectionRange = 12;
         this.attackRange = 2;
         this.attackCooldown = 1.5;
-        this.scale = 0.8; // Slightly smaller for goblin
+        this.scale = 2; // Slightly smaller for goblin
         this.groundOffset = 0.1;
         this.maxHealth = 30;
         this.attackDamage = 2;
