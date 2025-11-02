@@ -33,10 +33,96 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 - **Additional Info**: 
 
 ### 3. Ntokozo Skosana
-- **Features Developed**:
-  - 
-- **Notes**: .
-- **Additional Info**: 
+## Features Developed
+- **Enemy Design** for Project Beta submission  
+- **Ground Collision Detection**  
+- **Sound Integration** for Main Menu and Button Clicks  
+- **Pause Menu Implementation**  
+- **GameOver UI with Consistent Color Scheme**  
+- **Loading Screen Animation and UI**
+
+## Initial Implementation
+
+### Enemy Design
+For the beta build, I designed **three enemy models** sourced from Sketchfab — **MonsterEye**, **Mutant**, and **ScaryMonster**.  
+Each model was imported and optimized in Three.js using the `GLTFLoader`. The initial implementation focused on creating basic AI movement patterns through `enemyMovement.js`, where enemies patrol fixed paths and react to player proximity. **Note:** Although the designs were functional, the team later decided to change the enemy models for the final submission to better align with the game’s art style and theme.
+
+---
+
+### Ground Collision Detection
+Previously, both the **player** and **enemy characters** occasionally fell through the floor due to missing or inconsistent collision checks.  
+To fix this, I implemented **ground collision detection** in `characterControl.js` and `enemyMovement.js` using **raycasting** from each entity’s position downward.  
+
+The logic checks for intersections with the ground mesh:
+1. A downward ray (`THREE.Raycaster`) is cast from the entity’s position.
+2. If a hit is detected, the Y-position of the character is clamped to the hit point.
+3. If no hit is found (e.g., stepping off a platform), gravity is applied normally.
+
+This ensures smooth walking on uneven terrain and prevents objects from sinking or floating.
+
+---
+
+### Sound Integration
+I downloaded **MP3 sound effects** from **Pixabay** — specifically background music for the main menu and button click sounds for UI interactions.  
+These were integrated into `index.js` using the Three.js `AudioListener` and `Audio` objects.
+
+A known limitation (browser restriction) is that **sound won’t play until the user interacts with the screen**, which was resolved by triggering the `play()` call after the first user click.
+
+---
+
+### Pause Menu
+I implemented a **Pause Menu UI** in the `view/` folder (`pauseMenuUI.js`) and integrated into `index.js`.  
+The menu can be toggled by pressing **M**:
+- Press **M** → Pauses the game (scene updates halted)
+- Press **M** again → Resumes gameplay
+
+The Pause Menu includes:
+- **Continue** button (resumes gameplay)
+- **Restart** button (reloads the current level)
+
+---
+
+### GameOver UI
+The **GameOver UI** received a visual overhaul for color consistency.  
+I replaced the previous color overlay with a **red-orange gradient**, matching the dungeon’s warm color scheme.  
+Text styling, button hover effects, and background opacity were refined to create a cleaner transition between gameplay and the game-over state.
+
+---
+
+### Loading Screen Animation and UI
+I added a **procedural spider-web animation** as the background for the loading screen in `load.js`.  
+Each web is **procedurally drawn** on a canvas:
+- Uses **radial spokes** and **concentric rings** with small random irregularities.
+- **Slow rotation and drift** create a sense of motion and depth.
+- **Soft orange rim glow** maintains palette consistency with the main game UI.
+- **Performance optimized:** limited number of webs and automatic cleanup when the loader hides.
+
+This animation is responsive and lightweight, setting the mood before gameplay begins.
+
+---
+
+## Team Feedback Received
+
+| Feedback Area | Team Response |
+|----------------|----------------|
+| **Enemy Models** | The team did not like the appearance of the enemies and suggested replacing them for the final submission to improve visual cohesion. |
+| **Ground Collision** | Highly praised — the avatar and enemies no longer disappeared through the floor, which improved overall polish and playability. |
+| **Sound System** | The team enjoyed the music and click effects, though noted the initial bug where sound only plays after user interaction (browser autoplay restriction). |
+| **Pause Menu** | Widely appreciated — functional **restart** and **continue** buttons, smooth transitions, and convenient **M key** toggle were user-friendly. |
+| **Loading Screen** | The animated background was a favorite fitting perfectly with the dungeon’s aesthetic. |
+
+---
+## Files Updated
+- `load.js` → Added animated background and consistent color scheme  
+- `enemyMovement.js` → Implemented patrol logic and ground collision  
+- `characterControl.js` → Added ground detection 
+- `index.js` → Integrated sounds, pause system, and event handling  
+- `GameOverUI.js` → Updated color scheme and text layout  
+- `pauseMenuUI.js` → Created and styled the pause menu interface  
+
+---
+
+
 
 ### 4. Risuna 
 - **Features Developed**:
