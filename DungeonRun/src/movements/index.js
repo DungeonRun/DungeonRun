@@ -620,6 +620,7 @@ function togglePause() {
     }
 }
 
+// In the toggleCameraMode function, update to pass the camera mode:
 async function toggleCameraMode() {
     if (!characterControls || !characterControls.model) return;
     
@@ -637,14 +638,9 @@ async function toggleCameraMode() {
             scene: scene
         });
         
-        // Update character controls to use first person camera
+        // Update character controls to use first person camera with mode flag
         if (characterControls) {
-            characterControls.setActiveCamera(firstPersonCamera);
-        }
-        
-        // Hide player model in first person
-        if (characterControls.model) {
-            characterControls.model.visible = false;
+            characterControls.setActiveCamera(firstPersonCamera, true);
         }
         
     } else {
@@ -662,14 +658,9 @@ async function toggleCameraMode() {
             scene: scene
         });
         
-        // Update character controls to use third person camera
+        // Update character controls to use third person camera with mode flag
         if (characterControls) {
-            characterControls.setActiveCamera(thirdPersonCamera);
-        }
-        
-        // Show player model in third person
-        if (characterControls.model) {
-            characterControls.model.visible = true;
+            characterControls.setActiveCamera(thirdPersonCamera, false);
         }
     }
     
