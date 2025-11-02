@@ -37,10 +37,11 @@ This document outlines the individuals involved in the "DungeonRun" project and 
 ## Features Developed
 - **Enemy Design** for Project Beta submission  
 - **Ground Collision Detection**  
-- **Sound Integration** for Main Menu and Button Clicks  
+- **Sound Integration** for Main Menu and Combat  
 - **Pause Menu Implementation**  
 - **GameOver UI with Consistent Color Scheme**  
 - **Loading Screen Animation and UI**
+- **First Person Camera**
 
 ## Initial Implementation
 
@@ -68,6 +69,11 @@ I downloaded **MP3 sound effects** from **Pixabay** — specifically background 
 These were integrated into `index.js` using the Three.js `AudioListener` and `Audio` objects.
 
 A known limitation (browser restriction) is that **sound won’t play until the user interacts with the screen**, which was resolved by triggering the `play()` call after the first user click.
+
+- Added **punch** and **sword** sound effects that play during avatar combat with enemies.  
+- Integrated through the avatar’s attack animation triggers inside `characterControl.js`.  
+- Each sound is timed to sync with the animation frame when the attack connects, giving a satisfying “impact” feel.  
+- Sounds have short cooldowns and randomized pitch variation for realism.
 
 ---
 
@@ -100,6 +106,12 @@ Each web is **procedurally drawn** on a canvas:
 
 This animation is responsive and lightweight, setting the mood before gameplay begins.
 
+### First Person Camera 
+- Implemented first-person camera based on analysing Risuna's third person camera
+- Players can **press `Y`** to toggle between **first-person** (immersive) and **third-person** (spatial awareness) views.
+- The **first-person camera** locks to the player’s head height for realistic exploration.
+- I added **Pointer Lock** support for mouse control: clicking inside the window locks the mouse and allows **smooth, continuous camera rotation**.
+- The camera rotation is fully responsive to mouse movement and transitions smoothly between both modes.
 ---
 
 ## Team Feedback Received
@@ -111,15 +123,17 @@ This animation is responsive and lightweight, setting the mood before gameplay b
 | **Sound System** | The team enjoyed the music and click effects, though noted the initial bug where sound only plays after user interaction (browser autoplay restriction). |
 | **Pause Menu** | Widely appreciated — functional **restart** and **continue** buttons, smooth transitions, and convenient **M key** toggle were user-friendly. |
 | **Loading Screen** | The animated background was a favorite fitting perfectly with the dungeon’s aesthetic. |
-
+| **First Person Camera** | The team appreciated muitliple views of the camera |
 ---
 ## Files Updated
-- `load.js` → Added animated background and consistent color scheme  
-- `enemyMovement.js` → Implemented patrol logic and ground collision  
-- `characterControl.js` → Added ground detection 
-- `index.js` → Integrated sounds, pause system, and event handling  
-- `GameOverUI.js` → Updated color scheme and text layout  
-- `pauseMenuUI.js` → Created and styled the pause menu interface  
+- `load.js`  Added animated background and consistent color scheme  
+- `enemyMovement.js`  Implemented patrol logic and ground collision  
+- `characterControl.js`  Added ground detection 
+- `index.js`  Integrated sounds, pause system, and event handling  
+- `GameOverUI.js`  Updated color scheme and text layout  
+- `pauseMenuUI.js`  Created and styled the pause menu interface
+- `cameraViewToggleUI.js` Display camera icon on the button left of the screen.
+- `firstPersonCamera.js` system with the ability to switch between first and third person views
 
 ---
 
