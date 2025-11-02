@@ -56,7 +56,7 @@ export async function loadLevel3({
     scene.userData.levelMusic = level3Music;
     const collidables = [];
 
-    const playerSpawn = new THREE.Vector3(0, 1, 0);
+    const playerSpawn = new THREE.Vector3(0, 104, 0);
 
     const enemyConfigs = [
         // { pos: new THREE.Vector3(0, 1, -11), type: "boss", modelPath: "../../src/animations/enemies/boss.glb" },
@@ -82,7 +82,7 @@ export async function loadLevel3({
     }
 
     // LOAD LEVEL GEOMETRY FIRST
-    const roomPosition = new THREE.Vector3(10, -56, 45);
+    const roomPosition = new THREE.Vector3(10, 44, 45);
 
     const levelModelPromise = new Promise(resolve => {
         const levelLoader = new GLTFLoader();
