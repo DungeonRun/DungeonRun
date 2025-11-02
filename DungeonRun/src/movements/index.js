@@ -432,15 +432,38 @@ function playerAttack() {
         if (!inventory.isOnCooldown(SLOT_PUNCH)) {
             // play punch animation and schedule hitbox
             characterControls.playPunch();
+            
+            // Play punch sound effect
+            try {
+                soundManager.playSound('../../src/sounds/punch.mp3', {
+                    volume: 1.0,  // Adjust volume as needed (0.0 to 1.0)
+                    spatial: false  // Set to true if you want 3D positional audio
+                });
+            } catch (e) {
+                console.warn('Could not play punch sound:', e);
+            }
+            
             spawnAttackHitbox('punch');
             inventory.startCooldown(SLOT_PUNCH, PUNCH_COOLDOWN);
         }
-    } else if (selected === 'sword') {
-        if (!inventory.isOnCooldown(SLOT_SWORD)) {
-            characterControls.playSword();
-            spawnAttackHitbox('sword');
-            inventory.startCooldown(SLOT_SWORD, SWORD_COOLDOWN);
+   } else if (selected === 'sword') {
+    if (!inventory.isOnCooldown(SLOT_SWORD)) {
+        characterControls.playSword();
+        
+        // Play sword sound effect
+        try {
+            soundManager.playSound('../../src/sounds/sword.mp3', {
+                volume: 1.0,
+                spatial: false
+            });
+        } catch (e) {
+            console.warn('Could not play sword sound:', e);
         }
+        
+        spawnAttackHitbox('sword');
+        inventory.startCooldown(SLOT_SWORD, SWORD_COOLDOWN);
+    }
+
     } else if (selected === 'spell') {
         if (!inventory.isOnCooldown(SLOT_SPELL)) {
             const origin = characterControls.model.position.clone();
